@@ -91,8 +91,10 @@ fun HomeScreen(
     LaunchedEffect(origin, destination) {
         if (!origin.hasCoordinates() || !destination.hasCoordinates()) {
             multiRouteResult = null
+            com.example.safepath_test1.wear.WearMessenger.sendIdle(context)
             return@LaunchedEffect
         }
+        com.example.safepath_test1.wear.WearMessenger.sendRouteSearching(context)
         val token = context.getString(com.example.safepath_test1.R.string.mapbox_access_token)
         val result = com.example.safepath_test1.location.NavigationRepository.fetchMultiRoutes(
             context = context,
@@ -103,6 +105,12 @@ fun HomeScreen(
             destLng = destination.longitude!!,
         )
         multiRouteResult = result
+        val bestRoute = result.safeRoute ?: result.shortestRoute
+        if (bestRoute != null) {
+            com.example.safepath_test1.wear.WearMessenger.sendRouteFound(context, "안전경로", bestRoute.distanceMeters)
+        } else {
+            com.example.safepath_test1.wear.WearMessenger.sendIdle(context)
+        }
     }
 
     val activeRoute = when (routeType) {

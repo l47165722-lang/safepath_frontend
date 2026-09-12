@@ -65,4 +65,5 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("com.mapbox.maps:android-ndk27:11.30.0")
     implementation("com.mapbox.extension:maps-compose-ndk27:11.30.0")
+    implementation("com.google.android.gms:play-services-wearable:19.0.0")
 }
