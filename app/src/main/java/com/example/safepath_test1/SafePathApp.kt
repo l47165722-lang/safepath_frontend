@@ -80,21 +80,32 @@ fun SafePathApp() {
             }
             val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
 
-            try {
-                providers
-                    .mapNotNull { provider -> locationManager.getLastKnownLocation(provider) }
-                    .maxByOrNull { location -> location.time }
-                    ?.let { location ->
-                        currentLocation = GeoPoint(location.latitude, location.longitude)
-                    }
-                providers.forEach { provider ->
+            // Request each provider independently: on devices where only "approximate"
+            // (COARSE) location was granted, GPS_PROVIDER throws SecurityException — that
+            // used to abort NETWORK_PROVIDER too since both were inside one try block.
+            val lastKnownLocations = providers.mapNotNull { provider ->
+                try {
+                    locationManager.getLastKnownLocation(provider)
+                } catch (exception: SecurityException) {
+                    Log.w("SafePathApp", "No permission to read last known location from $provider", exception)
+                    null
+                }
+            }
+            lastKnownLocations.maxByOrNull { location -> location.time }
+                ?.let { location ->
+                    currentLocation = GeoPoint(location.latitude, location.longitude)
+                }
+
+            providers.forEach { provider ->
+                try {
                     if (locationManager.isProviderEnabled(provider)) {
                         locationManager.requestLocationUpdates(provider, 1_000L, 1f, listener)
+                    } else {
+                        Log.w("SafePathApp", "$provider is disabled on this device")
                     }
+                } catch (exception: SecurityException) {
+                    Log.w("SafePathApp", "No permission to request updates from $provider", exception)
                 }
-            } catch (exception: SecurityException) {
-                Log.e("SafePathApp", "Location permission was revoked while requesting updates", exception)
-                currentLocation = null
             }
 
             onDispose { locationManager.removeUpdates(listener) }
