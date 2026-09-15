@@ -18,3 +18,6 @@ local.properties
 # copy here from the Firebase console. See google-services.json.example.
 /app/google-services.json
 /wear/google-services.json
+
+# Mapbox secret token
+mapbox_access_token.xml
