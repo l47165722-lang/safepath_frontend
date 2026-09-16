@@ -59,6 +59,9 @@ fun SettingsScreen(
     var shareLocation by remember { mutableStateOf(preferences.getBoolean("share_location", true)) }
     var safetyAlerts by remember { mutableStateOf(preferences.getBoolean("safety_alerts", true)) }
     var avoidRiskAreas by remember { mutableStateOf(preferences.getBoolean("avoid_risk_areas", true)) }
+    var pairingCode by remember {
+        mutableStateOf(com.example.safepath_test1.wear.PairingCode.getOrCreate(context))
+    }
 
     Column(
         modifier = modifier
@@ -104,6 +107,36 @@ fun SettingsScreen(
                 },
             ),
         )
+
+        Text("워치 연동", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        ) {
+            Column {
+                SettingsLinkRow(
+                    title = "워치 연동 코드",
+                    value = pairingCode,
+                )
+                HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = AppBorder)
+                SettingsLinkRow(
+                    title = "코드 재발급",
+                    value = "실행",
+                ) {
+                    pairingCode = com.example.safepath_test1.wear.PairingCode.regenerate(context)
+                    android.widget.Toast.makeText(context, "새 코드가 발급되었습니다. 워치에 다시 입력해주세요.", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        Text(
+            "워치 앱을 처음 실행하면 위 코드를 입력해야 폰과 연동됩니다. 코드를 재발급하면 워치에서도 다시 입력해야 해요.",
+            color = TextMuted,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(start = 4.dp),
+        )
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),

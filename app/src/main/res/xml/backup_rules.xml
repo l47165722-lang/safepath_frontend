@@ -6,8 +6,8 @@
    See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- Guardian contact info (names/phone numbers) and the watch pairing
+         code should not be swept up into a device backup. -->
+    <exclude domain="sharedpref" path="safe_path_guardians.xml" />
+    <exclude domain="sharedpref" path="safepath_wear_pairing.xml" />
 </full-backup-content>

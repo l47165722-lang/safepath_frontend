@@ -86,19 +86,25 @@ fun GuardianScreen(
     var showAddDialog by remember { mutableStateOf(false) }
 
     val guardians = remember {
-        val jsonString = prefs.getString("guardian_list", "[]") ?: "[]"
-        val array = JSONArray(jsonString)
         val list = mutableStateListOf<GuardianItem>()
-        for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            list.add(
-                GuardianItem(
-                    id = obj.optString("id", ""),
-                    name = obj.optString("name", ""),
-                    relationship = obj.optString("relationship", ""),
-                    phone = obj.optString("phone", ""),
+        try {
+            val jsonString = prefs.getString("guardian_list", "[]") ?: "[]"
+            val array = JSONArray(jsonString)
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    GuardianItem(
+                        id = obj.optString("id", ""),
+                        name = obj.optString("name", ""),
+                        relationship = obj.optString("relationship", ""),
+                        phone = obj.optString("phone", ""),
+                    )
                 )
-            )
+            }
+        } catch (e: org.json.JSONException) {
+            // Saved data is corrupted (e.g. hand-edited or from an older app
+            // version) — start from an empty list instead of crashing.
+            android.util.Log.e("GuardianScreen", "Failed to parse saved guardian list, resetting", e)
         }
         list
     }
