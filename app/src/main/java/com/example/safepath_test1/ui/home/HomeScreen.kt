@@ -91,10 +91,10 @@ fun HomeScreen(
     LaunchedEffect(origin, destination) {
         if (!origin.hasCoordinates() || !destination.hasCoordinates()) {
             multiRouteResult = null
-            com.example.safepath_test1.wear.WearMessenger.sendIdle(context)
+            com.example.safepath_test1.wear.WearMessengerNative.sendIdle(context)
             return@LaunchedEffect
         }
-        com.example.safepath_test1.wear.WearMessenger.sendRouteSearching(context)
+        com.example.safepath_test1.wear.WearMessengerNative.sendRouteSearching(context)
         val token = context.getString(com.example.safepath_test1.R.string.mapbox_access_token)
         val result = com.example.safepath_test1.location.NavigationRepository.fetchMultiRoutes(
             context = context,
@@ -105,12 +105,6 @@ fun HomeScreen(
             destLng = destination.longitude!!,
         )
         multiRouteResult = result
-        val bestRoute = result.safeRoute ?: result.shortestRoute
-        if (bestRoute != null) {
-            com.example.safepath_test1.wear.WearMessenger.sendRouteFound(context, "안전경로", bestRoute.distanceMeters)
-        } else {
-            com.example.safepath_test1.wear.WearMessenger.sendIdle(context)
-        }
     }
 
     val activeRoute = when (routeType) {
@@ -123,6 +117,25 @@ fun HomeScreen(
         RouteType.Safe.name -> "#22C55E" // Safe Green
         RouteType.Shortest.name -> "#F59E0B" // Shortest Amber
         else -> "#2563EB" // Recommended Blue
+    }
+
+    // Keep the watch in sync with whichever route tab the user actually has
+    // selected (not hardcoded to the safe route), and re-send whenever they
+    // switch tabs after results are already loaded.
+    LaunchedEffect(multiRouteResult, activeRoute, routeType) {
+        if (multiRouteResult == null) return@LaunchedEffect
+        val selectedType = RouteType.valueOf(routeType)
+        val route = activeRoute
+        if (route != null) {
+            com.example.safepath_test1.wear.WearMessengerNative.sendRouteFound(
+                context = context,
+                routeType = selectedType.title,
+                destinationName = destination.name.ifBlank { null },
+                distanceMeters = route.distanceMeters,
+            )
+        } else {
+            com.example.safepath_test1.wear.WearMessengerNative.sendIdle(context)
+        }
     }
 
     Box(modifier = modifier.fillMaxSize()) {

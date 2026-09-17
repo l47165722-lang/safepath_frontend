@@ -168,12 +168,36 @@ object SafetyRepository {
         return r * c
     }
 
+    // A minimal CSV splitter that respects double-quoted fields (so an
+    // address like "서울시, 강남구" doesn't get split into two extra
+    // columns and shift every value after it). Plain String.split(",")
+    // breaks on rows like that.
+    private fun parseCsvLine(line: String): List<String> {
+        val result = mutableListOf<String>()
+        val current = StringBuilder()
+        var inQuotes = false
+        for (c in line) {
+            when {
+                c == '"' -> inQuotes = !inQuotes
+                c == ',' && !inQuotes -> {
+                    result.add(current.toString())
+                    current.clear()
+                }
+                else -> current.append(c)
+            }
+        }
+        result.add(current.toString())
+        return result
+    }
+
+    // cctv.csv is distributed as CP949/EUC-KR (common for Korean public-data
+    // exports); reading it as UTF-8 silently garbles the address column.
     private fun loadCctv(context: Context): List<SafetyFacility> {
         val list = mutableListOf<SafetyFacility>()
         try {
-            context.assets.open("cctv.csv").bufferedReader().useLines { lines ->
+            context.assets.open("cctv.csv").bufferedReader(charset("EUC-KR")).useLines { lines ->
                 lines.drop(1).forEach { line ->
-                    val cols = line.split(",")
+                    val cols = parseCsvLine(line)
                     if (cols.size >= 2) {
                         val lat = cols[0].trim().toDoubleOrNull()
                         val lng = cols[1].trim().toDoubleOrNull()
@@ -201,7 +225,7 @@ object SafetyRepository {
         try {
             context.assets.open("streetlight.csv").bufferedReader().useLines { lines ->
                 lines.drop(1).forEachIndexed { index, line ->
-                    val cols = line.split(",")
+                    val cols = parseCsvLine(line)
                     if (cols.size >= 3) {
                         val lat = cols[1].trim().toDoubleOrNull()
                         val lng = cols[2].trim().toDoubleOrNull()
