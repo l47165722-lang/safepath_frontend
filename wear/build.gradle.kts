@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.safepath_test1.wear"
+        applicationId = "com.example.safepath_test1"  // matches phone module - native Data Layer node discovery experiment
         minSdk = 30
         targetSdk = 37
         versionCode = 1
