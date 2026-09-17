@@ -3,7 +3,6 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
-    id("com.google.gms.google-services")
 }
 
 val localProperties = Properties().apply {
@@ -67,6 +66,4 @@ dependencies {
     implementation("com.mapbox.maps:android-ndk27:11.30.0")
     implementation("com.mapbox.extension:maps-compose-ndk27:11.30.0")
     implementation("com.google.android.gms:play-services-wearable:19.0.0")
-    implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
-    implementation("com.google.firebase:firebase-database-ktx")
 }
