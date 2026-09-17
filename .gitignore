@@ -14,10 +14,5 @@
 .cxx
 local.properties
 
-# Firebase config (contains project API key) — each dev should place their own
-# copy here from the Firebase console. See google-services.json.example.
-/app/google-services.json
-/wear/google-services.json
-
 # Mapbox secret token
 mapbox_access_token.xml

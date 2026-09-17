@@ -91,10 +91,10 @@ fun HomeScreen(
     LaunchedEffect(origin, destination) {
         if (!origin.hasCoordinates() || !destination.hasCoordinates()) {
             multiRouteResult = null
-            com.example.safepath_test1.wear.WearMessengerNative.sendIdle(context)
+            com.example.safepath_test1.wear.WearMessenger.sendIdle(context)
             return@LaunchedEffect
         }
-        com.example.safepath_test1.wear.WearMessengerNative.sendRouteSearching(context)
+        com.example.safepath_test1.wear.WearMessenger.sendRouteSearching(context)
         val token = context.getString(com.example.safepath_test1.R.string.mapbox_access_token)
         val result = com.example.safepath_test1.location.NavigationRepository.fetchMultiRoutes(
             context = context,
@@ -127,14 +127,14 @@ fun HomeScreen(
         val selectedType = RouteType.valueOf(routeType)
         val route = activeRoute
         if (route != null) {
-            com.example.safepath_test1.wear.WearMessengerNative.sendRouteFound(
+            com.example.safepath_test1.wear.WearMessenger.sendRouteFound(
                 context = context,
                 routeType = selectedType.title,
                 destinationName = destination.name.ifBlank { null },
                 distanceMeters = route.distanceMeters,
             )
         } else {
-            com.example.safepath_test1.wear.WearMessengerNative.sendIdle(context)
+            com.example.safepath_test1.wear.WearMessenger.sendIdle(context)
         }
     }
 
