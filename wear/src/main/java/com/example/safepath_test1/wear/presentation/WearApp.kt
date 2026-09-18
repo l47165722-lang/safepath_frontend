@@ -32,7 +32,10 @@ private const val TAG = "WearApp"
 private const val PATH_STATUS = "/safepath/status"
 
 /** If no update has arrived from the phone in this long, treat it as stale/disconnected. */
-private const val STALE_AFTER_MS = 10 * 60 * 1000L
+internal const val STALE_AFTER_MS = 10 * 60 * 1000L
+
+internal fun isStatusStale(updatedAt: Long, now: Long = System.currentTimeMillis()): Boolean =
+    updatedAt <= 0L || now - updatedAt > STALE_AFTER_MS
 
 private sealed class RouteStatus {
     data object Idle : RouteStatus()
@@ -55,8 +58,9 @@ fun WearApp() {
     var lastReceivedAt by remember { mutableStateOf(0L) }
 
     fun applyDataMap(dataMap: com.google.android.gms.wearable.DataMap) {
-        lastReceivedAt = System.currentTimeMillis()
-        status = when (dataMap.getString("state")) {
+        val updatedAt = dataMap.getLong("updatedAt")
+        lastReceivedAt = updatedAt
+        val receivedStatus = when (dataMap.getString("state")) {
             "SEARCHING" -> RouteStatus.Searching
             "FOUND" -> RouteStatus.Found(
                 routeType = dataMap.getString("routeType") ?: "경로",
@@ -65,6 +69,7 @@ fun WearApp() {
             )
             else -> RouteStatus.Idle
         }
+        status = if (isStatusStale(updatedAt)) RouteStatus.Stale else receivedStatus
         Log.i(TAG, "New status=$status")
     }
 

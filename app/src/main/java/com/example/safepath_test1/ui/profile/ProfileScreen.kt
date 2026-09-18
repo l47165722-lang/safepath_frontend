@@ -49,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
 import com.example.safepath_test1.ui.settings.SettingsScreen
 import com.example.safepath_test1.ui.theme.AppBorder
 import com.example.safepath_test1.ui.theme.FieldBg
@@ -94,12 +95,19 @@ private fun ProfileContent(
     LaunchedEffect(Unit) {
         val gPrefs = context.getSharedPreferences("safe_path_guardians", Context.MODE_PRIVATE)
         val jsonString = gPrefs.getString("guardian_list", "[]") ?: "[]"
-        val array = JSONArray(jsonString)
-        guardianCount = array.length()
-        if (guardianCount > 0) {
-            val first = array.optJSONObject(0)?.optString("name", "") ?: ""
-            guardianNames = if (guardianCount > 1) "${first} 외 ${guardianCount - 1}명" else first
-        } else {
+        try {
+            val array = JSONArray(jsonString)
+            guardianCount = array.length()
+            if (guardianCount > 0) {
+                val first = array.optJSONObject(0)?.optString("name", "") ?: ""
+                guardianNames = if (guardianCount > 1) "${first} 외 ${guardianCount - 1}명" else first
+            } else {
+                guardianNames = "없음"
+            }
+        } catch (exception: org.json.JSONException) {
+            android.util.Log.e("ProfileScreen", "Failed to parse guardian list; resetting it", exception)
+            gPrefs.edit { remove("guardian_list") }
+            guardianCount = 0
             guardianNames = "없음"
         }
     }

@@ -54,12 +54,15 @@ fun SafePathApp() {
     }
 
     LaunchedEffect(Unit) {
-        // Pre-load safety facilities in background thread (IO) so map displays them instantly on open
+        // Warm the facility cache independently; this must not delay the
+        // first-run permission dialog.
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             com.example.safepath_test1.location.SafetyRepository.getCctvGeoJson(context)
             com.example.safepath_test1.location.SafetyRepository.getStreetlightGeoJson(context)
         }
+    }
 
+    LaunchedEffect(Unit) {
         if (!hasLocationPermission) {
             permissionLauncher.launch(
                 arrayOf(

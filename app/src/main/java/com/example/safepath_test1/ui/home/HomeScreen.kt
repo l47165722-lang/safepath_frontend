@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -86,25 +87,46 @@ fun HomeScreen(
     var showSafetyFacilities by rememberSaveable { mutableStateOf(true) }
     var activeTab by rememberSaveable { mutableStateOf("destination") }
     var multiRouteResult by remember { mutableStateOf<com.example.safepath_test1.location.MultiRouteResult?>(null) }
+    var isRouteLoading by remember { mutableStateOf(false) }
+    var routeError by remember { mutableStateOf<String?>(null) }
+    var routeNotice by remember { mutableStateOf<String?>(null) }
     val destinationPoint = if (destination.hasCoordinates()) com.mapbox.geojson.Point.fromLngLat(destination.longitude!!, destination.latitude!!) else null
 
     LaunchedEffect(origin, destination) {
         if (!origin.hasCoordinates() || !destination.hasCoordinates()) {
             multiRouteResult = null
+            isRouteLoading = false
+            routeError = null
+            routeNotice = null
             com.example.safepath_test1.wear.WearMessenger.sendIdle(context)
             return@LaunchedEffect
         }
+        isRouteLoading = true
+        routeError = null
+        routeNotice = null
+        multiRouteResult = null
         com.example.safepath_test1.wear.WearMessenger.sendRouteSearching(context)
-        val token = context.getString(com.example.safepath_test1.R.string.mapbox_access_token)
-        val result = com.example.safepath_test1.location.NavigationRepository.fetchMultiRoutes(
-            context = context,
-            accessToken = token,
-            originLat = origin.latitude!!,
-            originLng = origin.longitude!!,
-            destLat = destination.latitude!!,
-            destLng = destination.longitude!!,
-        )
-        multiRouteResult = result
+        try {
+            val token = context.getString(com.example.safepath_test1.R.string.mapbox_access_token)
+            val result = com.example.safepath_test1.location.NavigationRepository.fetchMultiRoutes(
+                context = context,
+                accessToken = token,
+                originLat = origin.latitude!!,
+                originLng = origin.longitude!!,
+                destLat = destination.latitude!!,
+                destLng = destination.longitude!!,
+            )
+            multiRouteResult = result
+            routeError = result.errorMessage
+            routeNotice = result.noticeMessage
+        } catch (exception: kotlinx.coroutines.CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            android.util.Log.e("HomeScreen", "Route search failed", exception)
+            routeError = "경로 검색 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+        } finally {
+            isRouteLoading = false
+        }
     }
 
     val activeRoute = when (routeType) {
@@ -190,6 +212,43 @@ fun HomeScreen(
             selectedRouteType = RouteType.valueOf(routeType),
             onRouteTypeSelected = { routeType = it.name },
         )
+
+        if (isRouteLoading || routeError != null || routeNotice != null) {
+            val statusMessage = routeError ?: routeNotice ?: "안전 경로를 검색하고 있습니다."
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 142.dp, start = 24.dp, end = 24.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = when {
+                    routeError != null -> Color(0xFFFFF1F2)
+                    routeNotice != null -> Color(0xFFFFFBEB)
+                    else -> Color.White
+                },
+                shadowElevation = 3.dp,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (isRouteLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = SafeBlue,
+                        )
+                    }
+                    Text(
+                        text = statusMessage,
+                        color = if (routeError == null) TextMain else DestRed,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
 
         MapSideControls(
             modifier = Modifier

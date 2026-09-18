@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -72,21 +73,13 @@ fun SafetyMapScreen(
 ) {
     val context = LocalContext.current
     var radiusMeters by remember { mutableFloatStateOf(300f) }
-    var analysisResult by remember {
-        mutableStateOf(
-            RadiusAnalysisResult(
-                cctvCount = 0,
-                streetlightCount = 0,
-                level = SafetyLevel.GOOD,
-                totalScore = 80,
-            )
-        )
-    }
+    var analysisResult by remember { mutableStateOf<RadiusAnalysisResult?>(null) }
 
     val lat = currentLocation?.latitude ?: DefaultDalseoLat
     val lng = currentLocation?.longitude ?: DefaultDalseoLng
 
     LaunchedEffect(radiusMeters, currentLocation) {
+        analysisResult = null
         val result = SafetyRepository.analyzeRadius(
             context = context,
             centerLat = lat,
@@ -108,7 +101,14 @@ fun SafetyMapScreen(
             modifier = Modifier.statusBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            PageHeader("안전지수 분석", "반경을 조절하여 내 주변 안전도 및 시설을 확인하세요")
+            PageHeader(
+                "안전지수 분석",
+                if (currentLocation != null) {
+                    "반경을 조절하여 현재 위치 주변의 안전도를 확인하세요"
+                } else {
+                    "위치를 확인할 수 없어 대구 달서구 기준으로 분석합니다"
+                },
+            )
         }
 
         // 1. Radius Control Slider Card
@@ -192,8 +192,32 @@ fun SafetyMapScreen(
             }
         }
 
+        val result = analysisResult
+        if (result == null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = SafeBlue,
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text("안전시설을 분석하고 있습니다.", color = TextMain, fontSize = 13.sp)
+                }
+            }
+        } else {
         // 2. Safety Grade Badge Banner Card
-        val level = analysisResult.level
+        val level = result.level
         val levelColor = Color(level.hexColor)
 
         Card(
@@ -208,7 +232,7 @@ fun SafetyMapScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Text(
-                    text = "내 주변 안전 등급",
+                    text = if (currentLocation != null) "현재 위치 주변 안전 등급" else "대구 달서구 기준 안전 등급",
                     fontSize = 14.sp,
                     color = TextMuted,
                     fontWeight = FontWeight.Medium,
@@ -308,13 +332,13 @@ fun SafetyMapScreen(
             FacilityStatCard(
                 icon = Icons.Filled.Lock,
                 label = "CCTV",
-                count = "${analysisResult.cctvCount}개",
+                count = "${result.cctvCount}개",
                 modifier = Modifier.weight(1f),
             )
             FacilityStatCard(
                 icon = Icons.Filled.Star,
                 label = "가로등",
-                count = "${analysisResult.streetlightCount}개",
+                count = "${result.streetlightCount}개",
                 modifier = Modifier.weight(1f),
             )
         }
@@ -359,6 +383,7 @@ fun SafetyMapScreen(
                     )
                 }
             }
+        }
         }
     }
 }

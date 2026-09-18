@@ -9,7 +9,14 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 data class RouteResult(val geoJsonLineString: String, val distanceMeters: Double, val safetyFacilityScore: Double = 0.0)
-data class MultiRouteResult(val safeRoute: RouteResult?, val shortestRoute: RouteResult?, val recommendedRoute: RouteResult?)
+data class MultiRouteResult(
+    val safeRoute: RouteResult?,
+    val shortestRoute: RouteResult?,
+    val recommendedRoute: RouteResult?,
+    val errorMessage: String? = null,
+    val candidateRouteCount: Int = 0,
+    val noticeMessage: String? = null,
+)
 
 object NavigationRepository {
     private const val tag = "NavigationRepository"
@@ -17,10 +24,17 @@ object NavigationRepository {
     suspend fun fetchMultiRoutes(context: Context, accessToken: String, originLat: Double, originLng: Double, destLat: Double, destLng: Double): MultiRouteResult = withContext(Dispatchers.IO) {
         if (accessToken.isBlank()) {
             Log.e(tag, "Mapbox access token is blank")
-            return@withContext MultiRouteResult(null, null, null)
+            return@withContext MultiRouteResult(null, null, null, errorMessage = "지도 서비스 설정을 확인해 주세요.")
         }
         val candidates = fetchWalkingRoutes(accessToken, originLat, originLng, destLat, destLng)
-        val shortestRoute = candidates.minByOrNull { it.distanceMeters } ?: return@withContext MultiRouteResult(null, null, null)
+            .distinctBy { it.geoJsonLineString }
+        val shortestRoute = candidates.minByOrNull { it.distanceMeters }
+            ?: return@withContext MultiRouteResult(
+                null,
+                null,
+                null,
+                errorMessage = "경로를 찾지 못했습니다. 네트워크와 위치를 확인해 주세요.",
+            )
         val scoredCandidates = try {
             candidates.map {
                 it.copy(
@@ -33,18 +47,73 @@ object NavigationRepository {
             }
         } catch (exception: Exception) {
             Log.e(tag, "Failed to score walking routes with safety facilities; using shortest route", exception)
-            return@withContext MultiRouteResult(shortestRoute, shortestRoute, shortestRoute)
+            return@withContext MultiRouteResult(
+                safeRoute = shortestRoute,
+                shortestRoute = shortestRoute,
+                recommendedRoute = shortestRoute,
+                candidateRouteCount = candidates.size,
+                noticeMessage = "안전시설 분석에 실패해 최단 경로를 공통으로 표시합니다.",
+            )
         }
-        val shortestDistance = shortestRoute.distanceMeters.coerceAtLeast(1.0)
-        fun detourCost(route: RouteResult, weight: Double) = ((route.distanceMeters / shortestDistance) - 1.0).coerceAtLeast(0.0) * weight
-        val hasSafetyCoverage = scoredCandidates.any { it.safetyFacilityScore > 0.0 }
-        val safeRoute = if (hasSafetyCoverage) {
-            scoredCandidates.maxByOrNull { it.safetyFacilityScore - detourCost(it, 40.0) } ?: shortestRoute
-        } else shortestRoute
-        val recommendedRoute = if (hasSafetyCoverage) {
-            scoredCandidates.maxByOrNull { it.safetyFacilityScore - detourCost(it, 65.0) } ?: shortestRoute
-        } else shortestRoute
-        MultiRouteResult(safeRoute, shortestRoute, recommendedRoute)
+        selectRoutes(scoredCandidates)
+    }
+
+    /**
+     * Chooses routes on comparable 0..1 scales. Raw facility density can be
+     * much larger than the old fixed detour penalties, which previously made
+     * both "safe" and "recommended" almost always choose the same candidate.
+     */
+    internal fun selectRoutes(candidates: List<RouteResult>): MultiRouteResult {
+        if (candidates.isEmpty()) return MultiRouteResult(null, null, null)
+        val shortestRoute = candidates.minByOrNull { it.distanceMeters } ?: candidates.first()
+        if (candidates.size == 1) {
+            return MultiRouteResult(
+                safeRoute = shortestRoute,
+                shortestRoute = shortestRoute,
+                recommendedRoute = shortestRoute,
+                candidateRouteCount = 1,
+                noticeMessage = "이 구간은 대안 보행 경로가 없어 세 옵션에 같은 경로가 표시됩니다.",
+            )
+        }
+
+        val minSafety = candidates.minOf { it.safetyFacilityScore }
+        val maxSafety = candidates.maxOf { it.safetyFacilityScore }
+        if (maxSafety <= 0.0) {
+            return MultiRouteResult(
+                safeRoute = shortestRoute,
+                shortestRoute = shortestRoute,
+                recommendedRoute = shortestRoute,
+                candidateRouteCount = candidates.size,
+                noticeMessage = "후보 경로 주변의 안전시설 자료가 없어 최단 경로를 공통으로 표시합니다.",
+            )
+        }
+
+        val minDistance = candidates.minOf { it.distanceMeters }
+        val maxDistance = candidates.maxOf { it.distanceMeters }
+        fun normalized(value: Double, min: Double, max: Double): Double =
+            if (max <= min) 1.0 else ((value - min) / (max - min)).coerceIn(0.0, 1.0)
+        fun safety(route: RouteResult) = normalized(route.safetyFacilityScore, minSafety, maxSafety)
+        fun distance(route: RouteResult) = 1.0 - normalized(route.distanceMeters, minDistance, maxDistance)
+
+        // Safe strongly favors facility coverage; recommended balances safety
+        // and walking distance. Shortest remains a pure distance choice.
+        val safeRoute = candidates.maxByOrNull { safety(it) * 0.8 + distance(it) * 0.2 } ?: shortestRoute
+        val recommendedRoute = candidates.maxByOrNull { safety(it) * 0.5 + distance(it) * 0.5 } ?: shortestRoute
+        val selectedGeometryCount = listOf(safeRoute, shortestRoute, recommendedRoute)
+            .distinctBy { it.geoJsonLineString }
+            .size
+        val notice = when (selectedGeometryCount) {
+            1 -> "후보 경로를 비교했지만 현재 거리·안전도 기준에서는 세 옵션의 최적 경로가 같습니다."
+            2 -> "일부 옵션은 평가 결과가 같아 동일한 경로로 표시됩니다."
+            else -> null
+        }
+        return MultiRouteResult(
+            safeRoute = safeRoute,
+            shortestRoute = shortestRoute,
+            recommendedRoute = recommendedRoute,
+            candidateRouteCount = candidates.size,
+            noticeMessage = notice,
+        )
     }
 
     private fun fetchWalkingRoutes(accessToken: String, originLat: Double, originLng: Double, destLat: Double, destLng: Double): List<RouteResult> {

@@ -7,6 +7,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.safepath_test1.location.SafetyRepository
@@ -53,6 +54,7 @@ fun SafePathMapboxView(
     onMapClick: ((Point) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    val latestOnMapClick by rememberUpdatedState(onMapClick)
     val centerPoint = currentLocation?.let {
         Point.fromLngLat(it.longitude, it.latitude)
     } ?: SeoulFallback
@@ -103,12 +105,12 @@ fun SafePathMapboxView(
             }
         }
 
-        MapEffect(onMapClick) { mapView ->
-            if (onMapClick != null) {
-                mapView.gestures.addOnMapClickListener { point ->
-                    onMapClick(point)
-                    true
-                }
+        // Register exactly once for this MapView. The latest callback is read
+        // through rememberUpdatedState, so recomposition does not accumulate
+        // gesture listeners while still observing the current UI state.
+        MapEffect(Unit) { mapView ->
+            mapView.gestures.addOnMapClickListener { point ->
+                latestOnMapClick?.invoke(point) != null
             }
         }
 

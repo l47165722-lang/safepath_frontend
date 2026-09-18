@@ -6,7 +6,10 @@ import com.mapbox.geojson.Feature
 import com.mapbox.geojson.FeatureCollection
 import com.mapbox.geojson.Point
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.math.cos
 
 data class SafetyFacility(
     val latitude: Double,
@@ -39,35 +42,41 @@ object SafetyRepository {
     private var streetlightFeatureCollection: FeatureCollection? = null
     private var cctvList: List<SafetyFacility>? = null
     private var streetlightList: List<SafetyFacility>? = null
+    private val cctvCacheLock = Mutex()
+    private val streetlightCacheLock = Mutex()
 
     suspend fun getCctvGeoJson(context: Context): FeatureCollection = withContext(Dispatchers.IO) {
-        cctvFeatureCollection?.let { return@withContext it }
-        val facilities = loadCctv(context)
-        cctvList = facilities
-        val features = facilities.map { facility ->
-            Feature.fromGeometry(Point.fromLngLat(facility.longitude, facility.latitude)).apply {
-                addStringProperty("type", "CCTV")
-                addStringProperty("address", facility.address)
+        cctvCacheLock.withLock {
+            cctvFeatureCollection?.let { return@withLock it }
+            val facilities = cctvList ?: loadCctv(context).also { cctvList = it }
+            val features = facilities.map { facility ->
+                Feature.fromGeometry(Point.fromLngLat(facility.longitude, facility.latitude)).apply {
+                    addStringProperty("type", "CCTV")
+                    addStringProperty("address", facility.address)
+                }
             }
+            FeatureCollection.fromFeatures(features).also { cctvFeatureCollection = it }
         }
-        val collection = FeatureCollection.fromFeatures(features)
-        cctvFeatureCollection = collection
-        collection
     }
 
     suspend fun getStreetlightGeoJson(context: Context): FeatureCollection = withContext(Dispatchers.IO) {
-        streetlightFeatureCollection?.let { return@withContext it }
-        val facilities = loadStreetlights(context)
-        streetlightList = facilities
-        val features = facilities.map { facility ->
-            Feature.fromGeometry(Point.fromLngLat(facility.longitude, facility.latitude)).apply {
-                addStringProperty("type", "STREETLIGHT")
+        streetlightCacheLock.withLock {
+            streetlightFeatureCollection?.let { return@withLock it }
+            val facilities = streetlightList ?: loadStreetlights(context).also { streetlightList = it }
+            val features = facilities.map { facility ->
+                Feature.fromGeometry(Point.fromLngLat(facility.longitude, facility.latitude)).apply {
+                    addStringProperty("type", "STREETLIGHT")
+                }
             }
+            FeatureCollection.fromFeatures(features).also { streetlightFeatureCollection = it }
         }
-        val collection = FeatureCollection.fromFeatures(features)
-        streetlightFeatureCollection = collection
-        collection
     }
+
+    private suspend fun getCctvFacilities(context: Context): List<SafetyFacility> =
+        cctvCacheLock.withLock { cctvList ?: loadCctv(context).also { cctvList = it } }
+
+    private suspend fun getStreetlightFacilities(context: Context): List<SafetyFacility> =
+        streetlightCacheLock.withLock { streetlightList ?: loadStreetlights(context).also { streetlightList = it } }
 
     suspend fun analyzeRadius(
         context: Context,
@@ -75,8 +84,8 @@ object SafetyRepository {
         centerLng: Double,
         radiusMeters: Double,
     ): RadiusAnalysisResult = withContext(Dispatchers.IO) {
-        val cctvs = cctvList ?: loadCctv(context).also { cctvList = it }
-        val lights = streetlightList ?: loadStreetlights(context).also { streetlightList = it }
+        val cctvs = getCctvFacilities(context)
+        val lights = getStreetlightFacilities(context)
 
         var cctvInRadius = 0
         for (f in cctvs) {
@@ -130,12 +139,36 @@ object SafetyRepository {
             return@withContext 0.0
         }
         if (routePoints.size < 2) return@withContext 0.0
-        val cctvs = cctvList ?: loadCctv(context).also { cctvList = it }
-        val lights = streetlightList ?: loadStreetlights(context).also { streetlightList = it }
+        val cctvs = getCctvFacilities(context)
+        val lights = getStreetlightFacilities(context)
         if (cctvs.isEmpty() && lights.isEmpty()) return@withContext 0.0
-        val weightedFacilityCount = cctvs.count { isNearRoute(it, routePoints, 50.0) } * 4.0 +
-            lights.count { isNearRoute(it, routePoints, 40.0) }
+        // Most facilities are nowhere near the requested route. A cheap
+        // geographic bounding-box pass avoids comparing every one of the
+        // ~74k streetlights with every route segment.
+        val cctvCandidates = facilitiesInsideRouteBounds(cctvs, routePoints, 50.0)
+        val lightCandidates = facilitiesInsideRouteBounds(lights, routePoints, 40.0)
+        val weightedFacilityCount = cctvCandidates.count { isNearRoute(it, routePoints, 50.0) } * 4.0 +
+            lightCandidates.count { isNearRoute(it, routePoints, 40.0) }
         weightedFacilityCount * 1_000.0 / routeDistanceMeters.coerceAtLeast(100.0)
+    }
+
+    internal fun facilitiesInsideRouteBounds(
+        facilities: List<SafetyFacility>,
+        route: List<SafetyFacility>,
+        paddingMeters: Double,
+    ): List<SafetyFacility> {
+        if (route.isEmpty()) return emptyList()
+        val centerLatitude = route.map { it.latitude }.average()
+        val latitudePadding = paddingMeters / 111_320.0
+        val longitudeScale = (111_320.0 * cos(Math.toRadians(centerLatitude))).coerceAtLeast(1.0)
+        val longitudePadding = paddingMeters / longitudeScale
+        val minLatitude = route.minOf { it.latitude } - latitudePadding
+        val maxLatitude = route.maxOf { it.latitude } + latitudePadding
+        val minLongitude = route.minOf { it.longitude } - longitudePadding
+        val maxLongitude = route.maxOf { it.longitude } + longitudePadding
+        return facilities.filter {
+            it.latitude in minLatitude..maxLatitude && it.longitude in minLongitude..maxLongitude
+        }
     }
 
     private fun isNearRoute(facility: SafetyFacility, route: List<SafetyFacility>, thresholdMeters: Double): Boolean =
