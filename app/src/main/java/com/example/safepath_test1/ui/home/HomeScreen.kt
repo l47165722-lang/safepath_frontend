@@ -66,7 +66,7 @@ import com.example.safepath_test1.model.GeoPoint
 import com.example.safepath_test1.model.PlaceSelection
 import com.example.safepath_test1.location.KakaoPlace
 import com.example.safepath_test1.location.KakaoPlaceRepository
-import com.example.safepath_test1.ui.map.SafePathMapboxView
+import com.example.safepath_test1.ui.map.SafePathKakaoMapView
 import com.example.safepath_test1.ui.theme.DestRed
 import com.example.safepath_test1.ui.theme.FieldBg
 import com.example.safepath_test1.ui.theme.SafeBlue
@@ -105,7 +105,7 @@ fun HomeScreen(
     var placeSearchResults by remember { mutableStateOf<List<KakaoPlace>>(emptyList()) }
     var isPlaceSearchLoading by remember { mutableStateOf(false) }
     var placeSearchError by remember { mutableStateOf<String?>(null) }
-    val destinationPoint = if (destination.hasCoordinates()) com.mapbox.geojson.Point.fromLngLat(destination.longitude!!, destination.latitude!!) else null
+    val destinationPoint = if (destination.hasCoordinates()) GeoPoint(destination.latitude!!, destination.longitude!!) else null
 
     LaunchedEffect(destination.name, isDestinationSearchOpen) {
         if (!isDestinationSearchOpen || destination.name.trim().length < 2) {
@@ -204,7 +204,7 @@ fun HomeScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        SafePathMapboxView(
+        SafePathKakaoMapView(
             currentLocation = currentLocation,
             hasLocationPermission = hasLocationPermission,
             recenterToken = recenterToken,
@@ -213,9 +213,9 @@ fun HomeScreen(
             routeLineGeoJson = activeRoute?.geoJsonLineString,
             routeLineColor = activeRouteColor,
             onMapClick = { point ->
-                val latStr = String.format(java.util.Locale.US, "%.4f", point.latitude())
-                val lngStr = String.format(java.util.Locale.US, "%.4f", point.longitude())
-                val selectedPlace = PlaceSelection("선택한 장소 ($latStr, $lngStr)", point.latitude(), point.longitude())
+                val latStr = String.format(java.util.Locale.US, "%.4f", point.latitude)
+                val lngStr = String.format(java.util.Locale.US, "%.4f", point.longitude)
+                val selectedPlace = PlaceSelection("선택한 장소 ($latStr, $lngStr)", point.latitude, point.longitude)
 
                 if (activeTab == "origin") {
                     onOriginChanged(selectedPlace)

@@ -2,9 +2,6 @@ package com.example.safepath_test1.location
 
 import android.content.Context
 import android.util.Log
-import com.mapbox.geojson.Feature
-import com.mapbox.geojson.FeatureCollection
-import com.mapbox.geojson.Point
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -38,44 +35,15 @@ data class RadiusAnalysisResult(
 
 object SafetyRepository {
     private const val tag = "SafetyRepository"
-    private var cctvFeatureCollection: FeatureCollection? = null
-    private var streetlightFeatureCollection: FeatureCollection? = null
     private var cctvList: List<SafetyFacility>? = null
     private var streetlightList: List<SafetyFacility>? = null
     private val cctvCacheLock = Mutex()
     private val streetlightCacheLock = Mutex()
 
-    suspend fun getCctvGeoJson(context: Context): FeatureCollection = withContext(Dispatchers.IO) {
-        cctvCacheLock.withLock {
-            cctvFeatureCollection?.let { return@withLock it }
-            val facilities = cctvList ?: loadCctv(context).also { cctvList = it }
-            val features = facilities.map { facility ->
-                Feature.fromGeometry(Point.fromLngLat(facility.longitude, facility.latitude)).apply {
-                    addStringProperty("type", "CCTV")
-                    addStringProperty("address", facility.address)
-                }
-            }
-            FeatureCollection.fromFeatures(features).also { cctvFeatureCollection = it }
-        }
-    }
-
-    suspend fun getStreetlightGeoJson(context: Context): FeatureCollection = withContext(Dispatchers.IO) {
-        streetlightCacheLock.withLock {
-            streetlightFeatureCollection?.let { return@withLock it }
-            val facilities = streetlightList ?: loadStreetlights(context).also { streetlightList = it }
-            val features = facilities.map { facility ->
-                Feature.fromGeometry(Point.fromLngLat(facility.longitude, facility.latitude)).apply {
-                    addStringProperty("type", "STREETLIGHT")
-                }
-            }
-            FeatureCollection.fromFeatures(features).also { streetlightFeatureCollection = it }
-        }
-    }
-
-    private suspend fun getCctvFacilities(context: Context): List<SafetyFacility> =
+    suspend fun getCctvFacilities(context: Context): List<SafetyFacility> =
         cctvCacheLock.withLock { cctvList ?: loadCctv(context).also { cctvList = it } }
 
-    private suspend fun getStreetlightFacilities(context: Context): List<SafetyFacility> =
+    suspend fun getStreetlightFacilities(context: Context): List<SafetyFacility> =
         streetlightCacheLock.withLock { streetlightList ?: loadStreetlights(context).also { streetlightList = it } }
 
     suspend fun analyzeRadius(

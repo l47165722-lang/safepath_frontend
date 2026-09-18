@@ -36,7 +36,8 @@ object KakaoPlaceRepository {
     ): PlaceSearchResult = withContext(Dispatchers.IO) {
         val normalizedQuery = query.trim()
         if (normalizedQuery.length < 2) return@withContext PlaceSearchResult()
-        if (restApiKey.isBlank()) {
+        val normalizedApiKey = restApiKey.trim().replace("\"", "")
+        if (normalizedApiKey.isBlank()) {
             return@withContext PlaceSearchResult(
                 errorMessage = "카카오 REST API 키를 local.properties에 입력해 주세요.",
             )
@@ -55,7 +56,7 @@ object KakaoPlaceRepository {
             }.joinToString("&")
             connection = URI.create("$ENDPOINT?$parameters").toURL().openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
-            connection.setRequestProperty("Authorization", "KakaoAK $restApiKey")
+            connection.setRequestProperty("Authorization", "KakaoAK $normalizedApiKey")
             connection.setRequestProperty("Accept", "application/json")
             connection.connectTimeout = 5_000
             connection.readTimeout = 5_000

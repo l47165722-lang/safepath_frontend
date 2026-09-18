@@ -16,10 +16,20 @@ val localProperties = Properties().apply {
 val mapboxAccessToken = providers.gradleProperty("MAPBOX_ACCESS_TOKEN")
     .orElse(localProperties.getProperty("MAPBOX_ACCESS_TOKEN") ?: "")
     .get()
+    .trim()
+    .replace("\"", "")
 
 val kakaoRestApiKey = providers.gradleProperty("KAKAO_REST_API_KEY")
     .orElse(localProperties.getProperty("KAKAO_REST_API_KEY") ?: "")
     .get()
+    .trim()
+    .replace("\"", "")
+
+val kakaoNativeAppKey = providers.gradleProperty("KAKAO_NATIVE_APP_KEY")
+    .orElse(localProperties.getProperty("KAKAO_NATIVE_APP_KEY") ?: "")
+    .get()
+    .trim()
+    .replace("\"", "")
 
 android {
     namespace = "com.example.safepath_test1"
@@ -37,6 +47,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resValue("string", "mapbox_access_token", mapboxAccessToken)
         resValue("string", "kakao_rest_api_key", kakaoRestApiKey)
+        resValue("string", "kakao_native_app_key", kakaoNativeAppKey)
     }
 
     buildTypes {
@@ -69,8 +80,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
-    implementation("com.mapbox.maps:android-ndk27:11.30.0")
-    implementation("com.mapbox.extension:maps-compose-ndk27:11.30.0")
+    implementation("com.kakao.maps.open:android:2.15.2")
     implementation("com.google.android.gms:play-services-wearable:19.0.0")
     // 파이어베이스
     implementation(platform(libs.firebase.bom))

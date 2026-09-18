@@ -7,7 +7,7 @@
 
 ## 🌟 주요 기능 (Key Features)
 
-- 🗺️ **실시간 지도 내비게이션**: Mapbox Maps SDK 기반으로 사용자의 현재 위치 및 지도를 실시간으로 제공합니다.
+- 🗺️ **실시간 지도 내비게이션**: KakaoMaps SDK 기반으로 사용자의 현재 위치 및 지도를 실시간으로 제공합니다.
 - 🛣️ **맞춤형 경로 안내**: 안전 경로(CCTV/비상벨/지킴이집 우선), 최단 경로, 추천 경로 선택 기능을 제공합니다.
 - 🛡️ **보호자 안심 서비스**: 긴급 상황 발생 시 등록된 보호자에게 현재 위경도 위치 메시지를 간편하게 전송 및 공유합니다.
 - ⚙️ **권한 및 안심 설정**: GPS 위치 서비스 권한 관리 및 개인정보 안심 설정을 제공합니다.
@@ -18,7 +18,7 @@
 
 - **Language**: Kotlin
 - **UI Framework**: Jetpack Compose (Material 3)
-- **Map SDK**: Mapbox Maps SDK for Android Compose (`11.30.0`)
+- **Map SDK**: KakaoMaps SDK v2 for Android (`2.15.2`)
 - **Architecture**: Package by Feature / Layer Architecture
 - **Build Tool**: Gradle (Kotlin DSL, `libs.versions.toml`)
 - **Compatibility**: Android Min SDK 24 / Target SDK 37 (Java 11)
@@ -56,7 +56,7 @@ safepathtest1/
 │                   │   └── HomeScreen.kt
 │                   │
 │                   ├── 📂 map/                   # 지도 연동 패키지
-│                   │   └── SafePathMapboxView.kt # Mapbox Compose 뷰
+│                   │   └── SafePathKakaoMapView.kt # Kakao 지도 Compose 연동 뷰
 │                   │
 │                   ├── 📂 guardian/              # 보호자 안심 화면
 │                   │   └── GuardianScreen.kt
@@ -86,8 +86,7 @@ Activity Compose: 1.10.1
 
 📦 주요 라이브러리 버전
 
-Mapbox Maps SDK: 11.30.0 (com.mapbox.maps:android-ndk27:11.30.0)
-Mapbox Extension Compose: 11.30.0 (com.mapbox.extension:maps-compose-ndk27:11.30.0)
+KakaoMaps SDK v2: 2.15.2 (com.kakao.maps.open:android:2.15.2)
 AndroidX Core KTX: 1.19.0
 AndroidX AppCompat: 1.6.1
 Google Material: 1.10.0
@@ -99,9 +98,10 @@ Google Material: 1.10.0
    ```bash
    git clone https://github.com/your-username/safepathtest1.git
    ```
-2. 프로젝트 루트 폴더의 `local.properties` 파일에 Mapbox Access Token과 카카오 REST API 키를 설정합니다.
+2. 프로젝트 루트 폴더의 `local.properties` 파일에 경로 탐색용 Mapbox Access Token, 카카오 REST API 키와 카카오 네이티브 앱 키를 설정합니다.
    ```properties
    MAPBOX_ACCESS_TOKEN=your_mapbox_access_token_here
    KAKAO_REST_API_KEY=your_kakao_rest_api_key_here
+   KAKAO_NATIVE_APP_KEY=your_kakao_native_app_key_here
    ```
 3. Android Studio에서 프로젝트를 열고 실행합니다.

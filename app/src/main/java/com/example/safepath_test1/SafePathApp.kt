@@ -74,8 +74,8 @@ private fun SafePathMain() {
         // Warm the facility cache independently; this must not delay the
         // first-run permission dialog.
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            com.example.safepath_test1.location.SafetyRepository.getCctvGeoJson(context)
-            com.example.safepath_test1.location.SafetyRepository.getStreetlightGeoJson(context)
+            com.example.safepath_test1.location.SafetyRepository.getCctvFacilities(context)
+            com.example.safepath_test1.location.SafetyRepository.getStreetlightFacilities(context)
         }
     }
 
