@@ -45,7 +45,10 @@ fun SafePathApp() {
         if (isDemoLoggedIn) {
             SafePathMain()
         } else {
-            LoginPage(onDemoLogin = { isDemoLoggedIn = true })
+            LoginPage(
+                onLoginSuccess = { isDemoLoggedIn = true },
+                onDemoLogin = { isDemoLoggedIn = true },
+            )
         }
     }
 }
