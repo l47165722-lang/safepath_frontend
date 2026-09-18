@@ -16,6 +16,10 @@ val mapboxAccessToken = providers.gradleProperty("MAPBOX_ACCESS_TOKEN")
     .orElse(localProperties.getProperty("MAPBOX_ACCESS_TOKEN") ?: "")
     .get()
 
+val kakaoRestApiKey = providers.gradleProperty("KAKAO_REST_API_KEY")
+    .orElse(localProperties.getProperty("KAKAO_REST_API_KEY") ?: "")
+    .get()
+
 android {
     namespace = "com.example.safepath_test1"
     compileSdk {
@@ -31,6 +35,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resValue("string", "mapbox_access_token", mapboxAccessToken)
+        resValue("string", "kakao_rest_api_key", kakaoRestApiKey)
     }
 
     buildTypes {

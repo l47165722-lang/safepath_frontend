@@ -19,9 +19,11 @@ import com.mapbox.geojson.Point
 import com.mapbox.maps.extension.compose.MapEffect
 import com.mapbox.maps.extension.compose.MapboxMap
 import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportState
+import com.mapbox.maps.extension.style.expressions.generated.Expression
 import com.mapbox.maps.extension.style.layers.addLayer
 import com.mapbox.maps.extension.style.layers.generated.circleLayer
 import com.mapbox.maps.extension.style.layers.generated.lineLayer
+import com.mapbox.maps.extension.style.layers.generated.symbolLayer
 import com.mapbox.maps.extension.style.layers.getLayer
 import com.mapbox.maps.extension.style.layers.properties.generated.LineCap
 import com.mapbox.maps.extension.style.layers.properties.generated.LineJoin
@@ -128,14 +130,40 @@ fun SafePathMapboxView(
                         if (style.getSource("cctv-source") == null) {
                             style.addSource(geoJsonSource("cctv-source") {
                                 featureCollection(cctvGeoJson)
+                                cluster(true)
+                                clusterRadius(55)
+                                clusterMaxZoom(13)
                             })
                         }
                         if (style.getLayer("cctv-layer") == null) {
                             style.addLayer(circleLayer("cctv-layer", "cctv-source") {
+                                filter(Expression.not(Expression.has("point_count")))
+                                minZoom(14.0)
                                 circleColor("#2563EB")
                                 circleRadius(4.0)
                                 circleStrokeWidth(1.0)
                                 circleStrokeColor("#FFFFFF")
+                            })
+                        }
+                        if (style.getLayer("cctv-cluster-layer") == null) {
+                            style.addLayer(circleLayer("cctv-cluster-layer", "cctv-source") {
+                                filter(Expression.has("point_count"))
+                                maxZoom(14.0)
+                                circleColor("#2563EB")
+                                circleRadius(16.0)
+                                circleOpacity(0.88)
+                                circleStrokeWidth(2.0)
+                                circleStrokeColor("#FFFFFF")
+                            })
+                        }
+                        if (style.getLayer("cctv-cluster-count-layer") == null) {
+                            style.addLayer(symbolLayer("cctv-cluster-count-layer", "cctv-source") {
+                                filter(Expression.has("point_count"))
+                                maxZoom(14.0)
+                                textField(Expression.get("point_count_abbreviated"))
+                                textSize(11.0)
+                                textColor("#FFFFFF")
+                                textAllowOverlap(true)
                             })
                         }
 
@@ -143,19 +171,53 @@ fun SafePathMapboxView(
                         if (style.getSource("light-source") == null) {
                             style.addSource(geoJsonSource("light-source") {
                                 featureCollection(lightGeoJson)
+                                cluster(true)
+                                clusterRadius(60)
+                                clusterMaxZoom(13)
                             })
                         }
                         if (style.getLayer("light-layer") == null) {
                             style.addLayer(circleLayer("light-layer", "light-source") {
+                                filter(Expression.not(Expression.has("point_count")))
+                                minZoom(14.0)
                                 circleColor("#F59E0B")
                                 circleRadius(2.5)
                                 circleOpacity(0.8)
                             })
                         }
+                        if (style.getLayer("light-cluster-layer") == null) {
+                            style.addLayer(circleLayer("light-cluster-layer", "light-source") {
+                                filter(Expression.has("point_count"))
+                                maxZoom(14.0)
+                                circleColor("#F59E0B")
+                                circleRadius(14.0)
+                                circleOpacity(0.82)
+                                circleStrokeWidth(2.0)
+                                circleStrokeColor("#FFFFFF")
+                            })
+                        }
+                        if (style.getLayer("light-cluster-count-layer") == null) {
+                            style.addLayer(symbolLayer("light-cluster-count-layer", "light-source") {
+                                filter(Expression.has("point_count"))
+                                maxZoom(14.0)
+                                textField(Expression.get("point_count_abbreviated"))
+                                textSize(10.0)
+                                textColor("#FFFFFF")
+                                textAllowOverlap(true)
+                            })
+                        }
                     } else {
-                        if (style.getLayer("cctv-layer") != null) style.removeStyleLayer("cctv-layer")
+                        listOf(
+                            "cctv-cluster-count-layer",
+                            "cctv-cluster-layer",
+                            "cctv-layer",
+                            "light-cluster-count-layer",
+                            "light-cluster-layer",
+                            "light-layer",
+                        ).forEach { layerId ->
+                            if (style.getLayer(layerId) != null) style.removeStyleLayer(layerId)
+                        }
                         if (style.getSource("cctv-source") != null) style.removeStyleSource("cctv-source")
-                        if (style.getLayer("light-layer") != null) style.removeStyleLayer("light-layer")
                         if (style.getSource("light-source") != null) style.removeStyleSource("light-source")
                     }
                 }
@@ -167,6 +229,7 @@ fun SafePathMapboxView(
             mapView.mapboxMap.getStyle { style ->
                 val geoJson = routeLineGeoJson ?: run {
                     if (style.getLayer("route-layer") != null) style.removeStyleLayer("route-layer")
+                    if (style.getLayer("route-casing-layer") != null) style.removeStyleLayer("route-casing-layer")
                     if (style.getSource("route-source") != null) style.removeStyleSource("route-source")
                     return@getStyle
                 }
@@ -185,12 +248,18 @@ fun SafePathMapboxView(
                         style.getSourceAs<GeoJsonSource>("route-source")?.featureCollection(routeFeature)
                     }
 
-                    if (style.getLayer("route-layer") != null) {
-                        style.removeStyleLayer("route-layer")
-                    }
+                    if (style.getLayer("route-layer") != null) style.removeStyleLayer("route-layer")
+                    if (style.getLayer("route-casing-layer") != null) style.removeStyleLayer("route-casing-layer")
+                    style.addLayer(lineLayer("route-casing-layer", "route-source") {
+                        lineColor("#FFFFFF")
+                        lineWidth(11.5)
+                        lineOpacity(0.92)
+                        lineCap(LineCap.ROUND)
+                        lineJoin(LineJoin.ROUND)
+                    })
                     style.addLayer(lineLayer("route-layer", "route-source") {
                         lineColor(routeLineColor)
-                        lineWidth(7.5)
+                        lineWidth(7.0)
                         lineCap(LineCap.ROUND)
                         lineJoin(LineJoin.ROUND)
                     })

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -19,13 +20,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CircularProgressIndicator
@@ -43,9 +48,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -56,6 +64,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.safepath_test1.model.GeoPoint
 import com.example.safepath_test1.model.PlaceSelection
+import com.example.safepath_test1.location.KakaoPlace
+import com.example.safepath_test1.location.KakaoPlaceRepository
 import com.example.safepath_test1.ui.map.SafePathMapboxView
 import com.example.safepath_test1.ui.theme.DestRed
 import com.example.safepath_test1.ui.theme.FieldBg
@@ -82,6 +92,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     var routeType by rememberSaveable { mutableStateOf(RouteType.Safe.name) }
     var recenterToken by remember { mutableIntStateOf(0) }
     var showSafetyFacilities by rememberSaveable { mutableStateOf(true) }
@@ -90,7 +101,39 @@ fun HomeScreen(
     var isRouteLoading by remember { mutableStateOf(false) }
     var routeError by remember { mutableStateOf<String?>(null) }
     var routeNotice by remember { mutableStateOf<String?>(null) }
+    var isDestinationSearchOpen by rememberSaveable { mutableStateOf(false) }
+    var placeSearchResults by remember { mutableStateOf<List<KakaoPlace>>(emptyList()) }
+    var isPlaceSearchLoading by remember { mutableStateOf(false) }
+    var placeSearchError by remember { mutableStateOf<String?>(null) }
     val destinationPoint = if (destination.hasCoordinates()) com.mapbox.geojson.Point.fromLngLat(destination.longitude!!, destination.latitude!!) else null
+
+    LaunchedEffect(destination.name, isDestinationSearchOpen) {
+        if (!isDestinationSearchOpen || destination.name.trim().length < 2) {
+            placeSearchResults = emptyList()
+            placeSearchError = null
+            isPlaceSearchLoading = false
+            return@LaunchedEffect
+        }
+
+        placeSearchResults = emptyList()
+        placeSearchError = null
+        isPlaceSearchLoading = true
+        kotlinx.coroutines.delay(350)
+        try {
+            val result = KakaoPlaceRepository.search(
+                restApiKey = context.getString(com.example.safepath_test1.R.string.kakao_rest_api_key),
+                query = destination.name,
+                centerLatitude = currentLocation?.latitude,
+                centerLongitude = currentLocation?.longitude,
+            )
+            placeSearchResults = result.places
+            placeSearchError = result.errorMessage
+        } catch (exception: kotlinx.coroutines.CancellationException) {
+            throw exception
+        } finally {
+            isPlaceSearchLoading = false
+        }
+    }
 
     LaunchedEffect(origin, destination) {
         if (!origin.hasCoordinates() || !destination.hasCoordinates()) {
@@ -180,6 +223,8 @@ fun HomeScreen(
                     Toast.makeText(context, "출발지가 설정되었습니다. 이제 도착지를 지정해 주세요.", Toast.LENGTH_SHORT).show()
                 } else {
                     onDestinationChanged(selectedPlace)
+                    isDestinationSearchOpen = false
+                    keyboardController?.hide()
                 }
             },
             modifier = Modifier.fillMaxSize(),
@@ -193,15 +238,25 @@ fun HomeScreen(
             origin = origin,
             destination = destination,
             activeTab = activeTab,
-            onActiveTabChanged = { activeTab = it },
+            onActiveTabChanged = {
+                activeTab = it
+                isDestinationSearchOpen = it == "destination"
+            },
             onOriginChanged = {
                 onOriginChanged(it)
                 if (it.hasCoordinates() && !destination.hasCoordinates()) {
                     activeTab = "destination"
                 }
             },
-            onDestinationChanged = onDestinationChanged,
-            onSwap = onSwap,
+            onDestinationChanged = {
+                onDestinationChanged(it)
+                isDestinationSearchOpen = true
+            },
+            onSwap = {
+                onSwap()
+                isDestinationSearchOpen = false
+                keyboardController?.hide()
+            },
             onUseCurrentLocation = {
                 currentLocation?.let {
                     onOriginChanged(PlaceSelection("내 위치", it.latitude, it.longitude))
@@ -213,7 +268,36 @@ fun HomeScreen(
             onRouteTypeSelected = { routeType = it.name },
         )
 
-        if (isRouteLoading || routeError != null || routeNotice != null) {
+        if (isDestinationSearchOpen) {
+            DestinationSearchPanel(
+                query = destination.name,
+                places = placeSearchResults,
+                isLoading = isPlaceSearchLoading,
+                errorMessage = placeSearchError,
+                onQueryChanged = { query ->
+                    onDestinationChanged(PlaceSelection(name = query))
+                },
+                onPlaceSelected = { place ->
+                    onDestinationChanged(
+                        PlaceSelection(
+                            name = place.name,
+                            latitude = place.latitude,
+                            longitude = place.longitude,
+                        ),
+                    )
+                    isDestinationSearchOpen = false
+                    keyboardController?.hide()
+                },
+                onDismiss = {
+                    isDestinationSearchOpen = false
+                    keyboardController?.hide()
+                },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 142.dp, start = 14.dp, end = 14.dp),
+            )
+        } else if (isRouteLoading || routeError != null || routeNotice != null) {
             val statusMessage = routeError ?: routeNotice ?: "안전 경로를 검색하고 있습니다."
             Surface(
                 modifier = Modifier
@@ -263,6 +347,177 @@ fun HomeScreen(
         )
     }
 }
+
+@Composable
+private fun DestinationSearchPanel(
+    query: String,
+    places: List<KakaoPlace>,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onQueryChanged: (String) -> Unit,
+    onPlaceSelected: (KakaoPlace) -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+        keyboardController?.show()
+    }
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(5.dp, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White,
+    ) {
+        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null,
+                    tint = SafeBlue,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Box(modifier = Modifier.weight(1f)) {
+                    if (query.isBlank()) {
+                        Text(
+                            text = "장소명이나 주소를 입력하세요",
+                            color = TextMuted,
+                            fontSize = 13.sp,
+                        )
+                    }
+                    BasicTextField(
+                        value = query,
+                        onValueChange = onQueryChanged,
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            color = TextMain,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                        cursorBrush = SolidColor(SafeBlue),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester),
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "검색 닫기",
+                    tint = TextMuted,
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clickable(onClick = onDismiss),
+                )
+            }
+
+            val trimmedQuery = query.trim()
+            when {
+                trimmedQuery.length < 2 -> SearchMessage("목적지를 2글자 이상 입력해 주세요.")
+                isLoading -> Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 18.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = SafeBlue,
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text("카카오에서 장소를 검색하고 있습니다.", color = TextMuted, fontSize = 12.sp)
+                }
+                errorMessage != null -> SearchMessage(errorMessage, color = DestRed)
+                places.isEmpty() -> SearchMessage("검색 결과가 없습니다.")
+                else -> LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp),
+                ) {
+                    itemsIndexed(
+                        items = places,
+                        key = { _, place -> place.id },
+                    ) { index, place ->
+                        if (index > 0) {
+                            androidx.compose.material3.HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 14.dp),
+                                color = Color(0xFFF1F5F9),
+                            )
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onPlaceSelected(place) }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = DestRed,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(9.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = place.name,
+                                    color = TextMain,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (place.address.isNotBlank()) {
+                                    Text(
+                                        text = place.address,
+                                        color = TextMuted,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                            place.distanceMeters?.let { distance ->
+                                Text(
+                                    text = formatDistance(distance),
+                                    color = TextMuted,
+                                    fontSize = 10.sp,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchMessage(message: String, color: Color = TextMuted) {
+    Text(
+        text = message,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 18.dp),
+        color = color,
+        fontSize = 12.sp,
+    )
+}
+
+private fun formatDistance(distanceMeters: Int): String =
+    if (distanceMeters < 1_000) "${distanceMeters}m" else String.format(java.util.Locale.KOREA, "%.1fkm", distanceMeters / 1_000.0)
 
 @Composable
 private fun RouteSearchCard(

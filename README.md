@@ -99,8 +99,9 @@ Google Material: 1.10.0
    ```bash
    git clone https://github.com/your-username/safepathtest1.git
    ```
-2. 프로젝트 루트 폴더의 `local.properties` 파일에 Mapbox Access Token을 설정합니다.
+2. 프로젝트 루트 폴더의 `local.properties` 파일에 Mapbox Access Token과 카카오 REST API 키를 설정합니다.
    ```properties
    MAPBOX_ACCESS_TOKEN=your_mapbox_access_token_here
+   KAKAO_REST_API_KEY=your_kakao_rest_api_key_here
    ```
 3. Android Studio에서 프로젝트를 열고 실행합니다.

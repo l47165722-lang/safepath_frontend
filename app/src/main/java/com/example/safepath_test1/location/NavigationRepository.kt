@@ -72,7 +72,7 @@ object NavigationRepository {
                 shortestRoute = shortestRoute,
                 recommendedRoute = shortestRoute,
                 candidateRouteCount = 1,
-                noticeMessage = "이 구간은 대안 보행 경로가 없어 세 옵션에 같은 경로가 표시됩니다.",
+                noticeMessage = "안전, 최단, 추천 경로가 모두 같습니다.",
             )
         }
 

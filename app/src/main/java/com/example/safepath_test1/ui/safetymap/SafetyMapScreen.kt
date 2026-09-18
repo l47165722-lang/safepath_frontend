@@ -332,13 +332,13 @@ fun SafetyMapScreen(
             FacilityStatCard(
                 icon = Icons.Filled.Lock,
                 label = "CCTV",
-                count = "${result.cctvCount}개",
+                count = result.cctvCount,
                 modifier = Modifier.weight(1f),
             )
             FacilityStatCard(
                 icon = Icons.Filled.Star,
                 label = "가로등",
-                count = "${result.streetlightCount}개",
+                count = result.streetlightCount,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -350,13 +350,13 @@ fun SafetyMapScreen(
             FacilityStatCard(
                 icon = Icons.Filled.LocationOn,
                 label = "경찰시설",
-                count = "2개",
+                count = null,
                 modifier = Modifier.weight(1f),
             )
             FacilityStatCard(
                 icon = Icons.Filled.Notifications,
                 label = "비상벨",
-                count = "4개",
+                count = null,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -406,7 +406,7 @@ private fun SafetyLevelLegend(
 private fun FacilityStatCard(
     icon: ImageVector,
     label: String,
-    count: String,
+    count: Int?,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -427,10 +427,10 @@ private fun FacilityStatCard(
                 Text(label, fontSize = 13.sp, color = TextMuted, fontWeight = FontWeight.Medium)
             }
             Text(
-                text = count,
-                fontSize = 18.sp,
+                text = count?.let { "${it}개" } ?: "데이터 없음",
+                fontSize = if (count == null) 13.sp else 18.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = TextMain,
+                color = if (count == null) TextMuted else TextMain,
             )
         }
     }
