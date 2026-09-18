@@ -31,6 +31,7 @@ import com.example.safepath_test1.ui.SafePathTab
 import com.example.safepath_test1.ui.components.SafePathBottomBar
 import com.example.safepath_test1.ui.guardian.GuardianScreen
 import com.example.safepath_test1.ui.home.HomeScreen
+import com.example.safepath_test1.ui.login.LoginPage
 import com.example.safepath_test1.ui.profile.ProfileScreen
 import com.example.safepath_test1.ui.safetymap.SafetyMapScreen
 import com.example.safepath_test1.ui.theme.AppBackground
@@ -38,6 +39,19 @@ import com.example.safepath_test1.ui.theme.SafePathTheme
 
 @Composable
 fun SafePathApp() {
+    var isDemoLoggedIn by rememberSaveable { mutableStateOf(false) }
+
+    SafePathTheme {
+        if (isDemoLoggedIn) {
+            SafePathMain()
+        } else {
+            LoginPage(onDemoLogin = { isDemoLoggedIn = true })
+        }
+    }
+}
+
+@Composable
+private fun SafePathMain() {
     val context = LocalContext.current
     var selectedTab by rememberSaveable { mutableStateOf(SafePathTab.Home.name) }
     var currentLocation by remember { mutableStateOf<GeoPoint?>(null) }
@@ -117,8 +131,7 @@ fun SafePathApp() {
 
     val tab = SafePathTab.entries.find { it.name == selectedTab } ?: SafePathTab.Home
 
-    SafePathTheme {
-        Box(
+    Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(AppBackground),
@@ -160,7 +173,6 @@ fun SafePathApp() {
                 },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
-        }
     }
 }
 
