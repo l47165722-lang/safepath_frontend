@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.google.services) // 파이어베이
 }
 
 val localProperties = Properties().apply {
@@ -71,4 +72,11 @@ dependencies {
     implementation("com.mapbox.maps:android-ndk27:11.30.0")
     implementation("com.mapbox.extension:maps-compose-ndk27:11.30.0")
     implementation("com.google.android.gms:play-services-wearable:19.0.0")
+    // 파이어베이스
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    // 구글 로그인 의존성 추가
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 }
