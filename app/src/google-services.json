@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "222720972977",
+    "project_id": "sidepj-ba5ab",
+    "storage_bucket": "sidepj-ba5ab.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:222720972977:android:63debb759185b922a02a90",
+        "android_client_info": {
+          "package_name": "com.example.safepath_test1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCIH8jJMih5x5EuoBuEvO-rKcdfWFFzG7M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
