@@ -10,12 +10,13 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -39,6 +40,7 @@ import com.kakao.vectormap.route.RouteLineStylesSet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import kotlin.math.roundToInt
 
 private val SeoulFallback = GeoPoint(37.5665, 126.9780)
 private const val MapTag = "SafePathKakaoMapView"
@@ -46,18 +48,21 @@ private const val CctvLayerId = "safepath-cctv"
 private const val LightLayerId = "safepath-streetlight"
 private const val LocationLayerId = "safepath-current-location"
 private const val DestinationLayerId = "safepath-destination"
+private const val FacilityDisplayRadiusMeters = 5_000.0
+private const val MaxCctvLabels = 2_000
+private const val MaxStreetlightLabels = 4_000
 
 @Composable
 fun SafePathKakaoMapView(
     currentLocation: GeoPoint?,
     hasLocationPermission: Boolean,
     recenterToken: Int,
+    modifier: Modifier = Modifier,
     showSafetyFacilities: Boolean = true,
     destinationPoint: GeoPoint? = null,
     routeLineGeoJson: String? = null,
     routeLineColor: String = "#2563EB",
     onMapClick: ((GeoPoint) -> Unit)? = null,
-    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -67,7 +72,9 @@ fun SafePathKakaoMapView(
 
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
     var hasCentered by remember { mutableStateOf(false) }
-    var lastRecenterToken by remember { mutableStateOf(recenterToken) }
+    var lastRecenterToken by remember { mutableIntStateOf(recenterToken) }
+    val facilityLatitudeBucket = currentLocation?.latitude?.times(100.0)?.roundToInt()
+    val facilityLongitudeBucket = currentLocation?.longitude?.times(100.0)?.roundToInt()
 
     DisposableEffect(lifecycleOwner, mapView) {
         val observer = LifecycleEventObserver { _, event ->
@@ -152,7 +159,7 @@ fun SafePathKakaoMapView(
         }
     }
 
-    LaunchedEffect(kakaoMap, showSafetyFacilities) {
+    LaunchedEffect(kakaoMap, showSafetyFacilities, facilityLatitudeBucket, facilityLongitudeBucket) {
         val map = kakaoMap ?: return@LaunchedEffect
         val manager = map.labelManager ?: return@LaunchedEffect
         val cctvLayer = manager.getLodLayer(CctvLayerId)
@@ -169,15 +176,27 @@ fun SafePathKakaoMapView(
         }
         cctvLayer.setVisible(true)
         lightLayer.setVisible(true)
-        if (cctvLayer.labelCount > 0 || lightLayer.labelCount > 0) return@LaunchedEffect
+        cctvLayer.removeAll()
+        lightLayer.removeAll()
 
         val cctvStyle = LabelStyles.from(LabelStyle.from(createDotBitmap(10, Color.parseColor("#2563EB"), 2)).setZoomLevel(14))
         val lightStyle = LabelStyles.from(LabelStyle.from(createDotBitmap(7, Color.parseColor("#F59E0B"), 0)).setZoomLevel(14))
         val (cctvOptions, lightOptions) = withContext(Dispatchers.Default) {
-            val cctvs = SafetyRepository.getCctvFacilities(context).map { facility ->
+            val center = if (facilityLatitudeBucket != null && facilityLongitudeBucket != null) {
+                GeoPoint(facilityLatitudeBucket / 100.0, facilityLongitudeBucket / 100.0)
+            } else {
+                SeoulFallback
+            }
+            val cctvs = SafetyRepository.facilitiesNearPoint(
+                SafetyRepository.getCctvFacilities(context), center.latitude, center.longitude,
+                FacilityDisplayRadiusMeters, MaxCctvLabels,
+            ).map { facility ->
                 LabelOptions.from(LatLng.from(facility.latitude, facility.longitude)).setStyles(cctvStyle)
             }
-            val lights = SafetyRepository.getStreetlightFacilities(context).map { facility ->
+            val lights = SafetyRepository.facilitiesNearPoint(
+                SafetyRepository.getStreetlightFacilities(context), center.latitude, center.longitude,
+                FacilityDisplayRadiusMeters, MaxStreetlightLabels,
+            ).map { facility ->
                 LabelOptions.from(LatLng.from(facility.latitude, facility.longitude)).setStyles(lightStyle)
             }
             cctvs to lights

@@ -139,6 +139,27 @@ object SafetyRepository {
         }
     }
 
+    /** Returns only facilities near a point, avoiding creation of tens of thousands of map labels. */
+    internal fun facilitiesNearPoint(
+        facilities: List<SafetyFacility>,
+        latitude: Double,
+        longitude: Double,
+        radiusMeters: Double,
+        limit: Int,
+    ): List<SafetyFacility> {
+        if (limit <= 0 || radiusMeters <= 0.0) return emptyList()
+        val latitudePadding = radiusMeters / 111_320.0
+        val longitudeScale = (111_320.0 * cos(Math.toRadians(latitude))).coerceAtLeast(1.0)
+        val longitudePadding = radiusMeters / longitudeScale
+        return facilities.asSequence()
+            .filter {
+                it.latitude in (latitude - latitudePadding)..(latitude + latitudePadding) &&
+                    it.longitude in (longitude - longitudePadding)..(longitude + longitudePadding)
+            }
+            .take(limit)
+            .toList()
+    }
+
     private fun isNearRoute(facility: SafetyFacility, route: List<SafetyFacility>, thresholdMeters: Double): Boolean =
         route.zipWithNext().any { (start, end) -> distanceToSegmentMeters(facility, start, end) <= thresholdMeters }
 

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.CustomCredential
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
@@ -59,6 +60,8 @@ class GoogleAuthManager(
                     IllegalStateException("Google credential이 아닙니다.")
                 )
             }
+        } catch (e: NoCredentialException) {
+            Result.failure(IllegalStateException("사용 가능한 Google 계정을 찾지 못했습니다.", e))
         } catch (e: Exception) {
             Result.failure(e)
         }

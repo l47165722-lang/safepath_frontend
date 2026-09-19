@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +63,7 @@ import org.json.JSONArray
 @Composable
 fun ProfileScreen(
     hasLocationPermission: Boolean,
+    onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
@@ -74,6 +77,7 @@ fun ProfileScreen(
     } else {
         ProfileContent(
             onOpenSettings = { showSettings = true },
+            onLogout = onLogout,
             modifier = modifier,
         )
     }
@@ -82,6 +86,7 @@ fun ProfileScreen(
 @Composable
 private fun ProfileContent(
     onOpenSettings: () -> Unit,
+    onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -112,9 +117,10 @@ private fun ProfileContent(
         }
     }
 
-    var userName by remember { mutableStateOf(prefs.getString("user_name", "김안전") ?: "김안전") }
-    var userPhone by remember { mutableStateOf(prefs.getString("user_phone", "010-1234-5678") ?: "010-1234-5678") }
-    var emergencyContact by remember { mutableStateOf(prefs.getString("emergency_contact", "010-9876-5432 (엄마)") ?: "010-9876-5432 (엄마)") }
+    val firebaseUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+    var userName by remember { mutableStateOf(prefs.getString("user_name", null) ?: firebaseUser?.displayName ?: "게스트 사용자") }
+    var userPhone by remember { mutableStateOf(prefs.getString("user_phone", null) ?: firebaseUser?.email ?: "등록되지 않음") }
+    var emergencyContact by remember { mutableStateOf(prefs.getString("emergency_contact", null) ?: "등록되지 않음") }
 
     Column(
         modifier = modifier
@@ -216,7 +222,7 @@ private fun ProfileContent(
                 HorizontalDivider(color = AppBorder)
 
                 InfoRow(label = "비상 연락처", value = emergencyContact)
-                InfoRow(label = "주 사용 위치", value = "서울특별시 중구")
+                InfoRow(label = "계정", value = if (firebaseUser != null) "Google 로그인" else "둘러보기")
             }
         }
 
@@ -245,46 +251,27 @@ private fun ProfileContent(
                 HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = AppBorder)
                 StatusItemRow(
                     icon = Icons.Filled.LocationOn,
-                    title = "실시간 위치 공유",
-                    status = "활성화 됨",
+                    title = "위치 공유",
+                    status = "사용자 선택 시 공유",
                     isPositive = true,
                 )
                 HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = AppBorder)
                 StatusItemRow(
                     icon = Icons.Filled.Info,
-                    title = "스마트워치 기기 연동",
-                    status = "미연동",
-                    isPositive = false,
-                )
-                HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = AppBorder)
-                StatusItemRow(
-                    icon = Icons.Filled.Lock,
-                    title = "마이크 상태",
-                    status = if (hasMicPermission(context)) "권한 허용" else "허용 필요",
-                    isPositive = hasMicPermission(context),
-                )
-                HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = AppBorder)
-                StatusItemRow(
-                    icon = Icons.Filled.Lock,
-                    title = "카메라 상태",
-                    status = if (hasCameraPermission(context)) "권한 허용" else "허용 필요",
-                    isPositive = hasCameraPermission(context),
+                    title = "스마트워치 상태 전송",
+                    status = "경로 선택 시 전송",
+                    isPositive = true,
                 )
             }
         }
+
+        Button(
+            onClick = onLogout,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = TextMain),
+            shape = RoundedCornerShape(14.dp),
+        ) { Text("로그아웃") }
     }
-}
-
-private fun hasMicPermission(context: Context): Boolean {
-    return androidx.core.content.ContextCompat.checkSelfPermission(
-        context, android.Manifest.permission.RECORD_AUDIO
-    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-}
-
-private fun hasCameraPermission(context: Context): Boolean {
-    return androidx.core.content.ContextCompat.checkSelfPermission(
-        context, android.Manifest.permission.CAMERA
-    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
 }
 
 @Composable

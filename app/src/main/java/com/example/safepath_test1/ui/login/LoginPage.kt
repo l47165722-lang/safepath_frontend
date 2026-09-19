@@ -29,6 +29,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -51,6 +54,7 @@ fun LoginPage(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var isSigningIn by remember { mutableStateOf(false) }
     val googleAuthManager = remember {
         GoogleAuthManager(context)
     }
@@ -102,7 +106,8 @@ fun LoginPage(
             Spacer(modifier = Modifier.height(36.dp))
 
             ProviderButton(
-                provider = "Google",
+                provider = if (isSigningIn) "로그인 중…" else "Google",
+                enabled = !isSigningIn,
                 icon = {
                     Text(
                         text = "G",
@@ -114,6 +119,7 @@ fun LoginPage(
                 },
                 onClick = {
                     scope.launch {
+                        isSigningIn = true
                         val result = googleAuthManager.signInWithGoogle()
 
                         if (result.isSuccess) {
@@ -132,6 +138,7 @@ fun LoginPage(
                                 Toast.LENGTH_LONG
                             ).show()
                         }
+                        isSigningIn = false
                     }
                 }
             )
@@ -182,6 +189,7 @@ fun LoginPage(
 @Composable
 private fun ProviderButton(
     provider: String,
+    enabled: Boolean = true,
     icon: @Composable () -> Unit,
     onClick: () -> Unit
 ) {
@@ -189,7 +197,7 @@ private fun ProviderButton(
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp)
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         shape = RoundedCornerShape(15.dp),
         color = Color.White,
         border = BorderStroke(1.dp, AppBorder),
@@ -207,7 +215,7 @@ private fun ProviderButton(
             }
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = "${provider}로 계속하기",
+                text = if (provider == "로그인 중…") provider else "${provider}로 계속하기",
                 color = TextMain,
                 fontWeight = FontWeight.SemiBold
             )

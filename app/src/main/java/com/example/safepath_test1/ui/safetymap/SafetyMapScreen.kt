@@ -63,9 +63,6 @@ import com.example.safepath_test1.ui.theme.TextMain
 import com.example.safepath_test1.ui.theme.TextMuted
 import kotlin.math.roundToInt
 
-private const val DefaultDalseoLat = 35.8572
-private const val DefaultDalseoLng = 128.5712
-
 @Composable
 fun SafetyMapScreen(
     currentLocation: GeoPoint?,
@@ -75,15 +72,14 @@ fun SafetyMapScreen(
     var radiusMeters by remember { mutableFloatStateOf(300f) }
     var analysisResult by remember { mutableStateOf<RadiusAnalysisResult?>(null) }
 
-    val lat = currentLocation?.latitude ?: DefaultDalseoLat
-    val lng = currentLocation?.longitude ?: DefaultDalseoLng
-
     LaunchedEffect(radiusMeters, currentLocation) {
         analysisResult = null
+        val location = currentLocation ?: return@LaunchedEffect
+        kotlinx.coroutines.delay(300)
         val result = SafetyRepository.analyzeRadius(
             context = context,
-            centerLat = lat,
-            centerLng = lng,
+            centerLat = location.latitude,
+            centerLng = location.longitude,
             radiusMeters = radiusMeters.toDouble(),
         )
         analysisResult = result
@@ -103,11 +99,7 @@ fun SafetyMapScreen(
         ) {
             PageHeader(
                 "안전지수 분석",
-                if (currentLocation != null) {
-                    "반경을 조절하여 현재 위치 주변의 안전도를 확인하세요"
-                } else {
-                    "위치를 확인할 수 없어 대구 달서구 기준으로 분석합니다"
-                },
+                "반경을 조절하여 현재 위치 주변 시설 분포를 확인하세요",
             )
         }
 
@@ -193,7 +185,23 @@ fun SafetyMapScreen(
         }
 
         val result = analysisResult
-        if (result == null) {
+        if (currentLocation == null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(Icons.Filled.LocationOn, contentDescription = "위치 필요", tint = SafeBlue)
+                    Text("현재 위치가 필요합니다", fontWeight = FontWeight.Bold, color = TextMain)
+                    Text("위치 권한과 기기의 위치 서비스를 확인해 주세요.", color = TextMuted, fontSize = 13.sp)
+                }
+            }
+        } else if (result == null) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
@@ -232,7 +240,7 @@ fun SafetyMapScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Text(
-                    text = if (currentLocation != null) "현재 위치 주변 안전 등급" else "대구 달서구 기준 안전 등급",
+                    text = "현재 위치 주변 시설 분석 등급",
                     fontSize = 14.sp,
                     color = TextMuted,
                     fontWeight = FontWeight.Medium,
@@ -343,24 +351,6 @@ fun SafetyMapScreen(
             )
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            FacilityStatCard(
-                icon = Icons.Filled.LocationOn,
-                label = "경찰시설",
-                count = null,
-                modifier = Modifier.weight(1f),
-            )
-            FacilityStatCard(
-                icon = Icons.Filled.Notifications,
-                label = "비상벨",
-                count = null,
-                modifier = Modifier.weight(1f),
-            )
-        }
-
         // 4. Safety Tip Card
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -375,9 +365,9 @@ fun SafetyMapScreen(
                 Icon(Icons.Filled.Info, contentDescription = null, tint = SafeBlue, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(12.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("안심 이동 팁", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextMain)
+                    Text("분석 기준 안내", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextMain)
                     Text(
-                        "야간 이동 시 CCTV와 가로등 밀집도가 높은 밝은 주요 도로를 중심으로 이동하는 것을 권장합니다.",
+                        "이 등급은 앱에 포함된 CCTV와 가로등 데이터의 밀도를 비교한 참고 지표이며 실제 안전을 보장하지 않습니다.",
                         fontSize = 12.sp,
                         color = TextMuted,
                     )

@@ -29,6 +29,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import com.example.safepath_test1.ui.SafePathTab
 import com.example.safepath_test1.ui.theme.DestRed
 import com.example.safepath_test1.ui.theme.SafeBlue
@@ -111,6 +115,7 @@ fun SafePathBottomBar(
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
+                    role = Role.Button,
                     onClick = onSosClick
                 ),
             shape = CircleShape,
@@ -148,12 +153,16 @@ private fun TabItem(
 ) {
     Box(
         modifier = modifier
+            .semantics {
+                selected = isSelected
+                role = Role.Tab
+            }
             .padding(horizontal = 2.dp)
             .background(
                 color = if (isSelected) SafeBlue else Color.Transparent,
                 shape = RoundedCornerShape(12.dp),
             )
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Tab, onClick = onClick)
             .padding(vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {

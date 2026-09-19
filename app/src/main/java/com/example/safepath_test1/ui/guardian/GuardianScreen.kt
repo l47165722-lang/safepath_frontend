@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.safepath_test1.model.GeoPoint
+import com.example.safepath_test1.location.shareLocation
 import com.example.safepath_test1.ui.components.PageHeader
 import com.example.safepath_test1.ui.theme.AppBorder
 import com.example.safepath_test1.ui.theme.DangerRed
@@ -132,6 +133,39 @@ fun GuardianScreen(
     ) {
         PageHeader("보호자", "안심 보호자를 등록하고 관리하세요 (최대 9명)")
 
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text("현재 위치 공유", fontWeight = FontWeight.Bold, color = TextMain)
+                Text(
+                    if (currentLocation == null) "위치를 확인하는 중입니다." else "공유할 앱과 보호자를 직접 선택할 수 있습니다.",
+                    color = TextMuted,
+                    fontSize = 12.sp,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        enabled = currentLocation != null,
+                        onClick = { shareLocation(context, currentLocation, isEmergency = false) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                    ) { Text("위치 공유") }
+                    Button(
+                        enabled = currentLocation != null,
+                        onClick = { shareLocation(context, currentLocation, isEmergency = true) },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = DangerRed),
+                        shape = RoundedCornerShape(12.dp),
+                    ) { Text("긴급 공유") }
+                }
+            }
+        }
+
         // Top Row: Status & Add Guardian Button
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -160,7 +194,7 @@ fun GuardianScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Filled.Add, contentDescription = "보호자 추가", tint = Color.White, modifier = Modifier.size(16.dp))
                     Text("보호자 추가", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }

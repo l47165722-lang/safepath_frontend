@@ -32,4 +32,23 @@ class SafetyRepositoryTest {
 
         assertEquals(emptyList<SafetyFacility>(), candidates)
     }
+
+    @Test
+    fun nearbyFacilities_respectBoundsAndLimit() {
+        val nearby = listOf(
+            SafetyFacility(37.5000, 127.0000),
+            SafetyFacility(37.5001, 127.0001),
+        )
+        val distant = SafetyFacility(35.8572, 128.5712)
+
+        val result = SafetyRepository.facilitiesNearPoint(
+            facilities = nearby + distant,
+            latitude = 37.5,
+            longitude = 127.0,
+            radiusMeters = 1_000.0,
+            limit = 1,
+        )
+
+        assertEquals(listOf(nearby.first()), result)
+    }
 }

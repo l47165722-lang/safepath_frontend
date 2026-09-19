@@ -45,6 +45,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -65,7 +67,6 @@ import androidx.compose.ui.unit.sp
 import com.example.safepath_test1.model.GeoPoint
 import com.example.safepath_test1.model.PlaceSelection
 import com.example.safepath_test1.location.KakaoPlace
-import com.example.safepath_test1.location.KakaoPlaceRepository
 import com.example.safepath_test1.ui.map.SafePathKakaoMapView
 import com.example.safepath_test1.ui.theme.DestRed
 import com.example.safepath_test1.ui.theme.FieldBg
@@ -93,83 +94,34 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val homeViewModel: HomeViewModel = viewModel()
+    val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     var routeType by rememberSaveable { mutableStateOf(RouteType.Safe.name) }
     var recenterToken by remember { mutableIntStateOf(0) }
     var showSafetyFacilities by rememberSaveable { mutableStateOf(true) }
     var activeTab by rememberSaveable { mutableStateOf("destination") }
-    var multiRouteResult by remember { mutableStateOf<com.example.safepath_test1.location.MultiRouteResult?>(null) }
-    var isRouteLoading by remember { mutableStateOf(false) }
-    var routeError by remember { mutableStateOf<String?>(null) }
-    var routeNotice by remember { mutableStateOf<String?>(null) }
     var isDestinationSearchOpen by rememberSaveable { mutableStateOf(false) }
-    var placeSearchResults by remember { mutableStateOf<List<KakaoPlace>>(emptyList()) }
-    var isPlaceSearchLoading by remember { mutableStateOf(false) }
-    var placeSearchError by remember { mutableStateOf<String?>(null) }
+    val multiRouteResult = uiState.routes
+    val isRouteLoading = uiState.isRouteLoading
+    val routeError = uiState.routeError
+    val routeNotice = uiState.routeNotice
+    val placeSearchResults = uiState.places
+    val isPlaceSearchLoading = uiState.isPlaceSearchLoading
+    val placeSearchError = uiState.placeSearchError
     val destinationPoint = if (destination.hasCoordinates()) GeoPoint(destination.latitude!!, destination.longitude!!) else null
 
     LaunchedEffect(destination.name, isDestinationSearchOpen) {
-        if (!isDestinationSearchOpen || destination.name.trim().length < 2) {
-            placeSearchResults = emptyList()
-            placeSearchError = null
-            isPlaceSearchLoading = false
-            return@LaunchedEffect
-        }
-
-        placeSearchResults = emptyList()
-        placeSearchError = null
-        isPlaceSearchLoading = true
-        kotlinx.coroutines.delay(350)
-        try {
-            val result = KakaoPlaceRepository.search(
-                restApiKey = context.getString(com.example.safepath_test1.R.string.kakao_rest_api_key),
-                query = destination.name,
-                centerLatitude = currentLocation?.latitude,
-                centerLongitude = currentLocation?.longitude,
-            )
-            placeSearchResults = result.places
-            placeSearchError = result.errorMessage
-        } catch (exception: kotlinx.coroutines.CancellationException) {
-            throw exception
-        } finally {
-            isPlaceSearchLoading = false
-        }
+        homeViewModel.searchPlaces(destination.name, isDestinationSearchOpen, currentLocation)
     }
 
     LaunchedEffect(origin, destination) {
         if (!origin.hasCoordinates() || !destination.hasCoordinates()) {
-            multiRouteResult = null
-            isRouteLoading = false
-            routeError = null
-            routeNotice = null
+            homeViewModel.loadRoutes(origin, destination)
             com.example.safepath_test1.wear.WearMessenger.sendIdle(context)
             return@LaunchedEffect
         }
-        isRouteLoading = true
-        routeError = null
-        routeNotice = null
-        multiRouteResult = null
         com.example.safepath_test1.wear.WearMessenger.sendRouteSearching(context)
-        try {
-            val token = context.getString(com.example.safepath_test1.R.string.mapbox_access_token)
-            val result = com.example.safepath_test1.location.NavigationRepository.fetchMultiRoutes(
-                context = context,
-                accessToken = token,
-                originLat = origin.latitude!!,
-                originLng = origin.longitude!!,
-                destLat = destination.latitude!!,
-                destLng = destination.longitude!!,
-            )
-            multiRouteResult = result
-            routeError = result.errorMessage
-            routeNotice = result.noticeMessage
-        } catch (exception: kotlinx.coroutines.CancellationException) {
-            throw exception
-        } catch (exception: Exception) {
-            android.util.Log.e("HomeScreen", "Route search failed", exception)
-            routeError = "경로 검색 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
-        } finally {
-            isRouteLoading = false
-        }
+        homeViewModel.loadRoutes(origin, destination)
     }
 
     val activeRoute = when (routeType) {
@@ -672,8 +624,8 @@ private fun RouteFieldRow(
     isSelected: Boolean,
     onSelect: () -> Unit,
     onValueChange: (String) -> Unit,
-    trailing: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val backgroundColor = if (isSelected) Color.White else FieldBg
     val borderColor = if (isSelected) SafeBlue else Color.Transparent

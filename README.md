@@ -20,10 +20,10 @@ SafePath는 Android와 Wear OS를 위한 **안전 귀가 경로 탐색 프로토
 | 항목 | 현재 동작 |
 | --- | --- |
 | Google 로그인 | Firebase 및 Google Cloud 설정이 올바르면 작동합니다. 로그인 화면의 데모 진입은 인증을 건너뜁니다. |
-| SOS | 현재 Toast 메시지만 표시합니다. 신고·SMS·보호자 자동 전송은 구현되어 있지 않습니다. |
+| SOS | 확인 대화상자 뒤 시스템 공유 시트를 열어 긴급 문구와 현재 위치를 사용자가 선택한 앱에 전달합니다. 자동 신고·SMS·보호자 자동 전송은 하지 않습니다. |
 | 보호자 | `SharedPreferences`에 로컬 저장됩니다. 계정 간 동기화나 자동 알림은 하지 않습니다. |
 | 위치 공유 | 사용자가 Android 공유 시트에서 수신 앱과 대상을 직접 선택합니다. |
-| 안전시설 | `app/src/main/assets`의 CCTV·가로등 CSV를 사용합니다. 안전지역 화면의 경찰시설·비상벨 수는 현재 고정 표시값입니다. |
+| 안전시설 | `app/src/main/assets`의 CCTV·가로등 CSV를 사용하며, 현재 위치 주변 데이터만 지도에 제한적으로 표시합니다. |
 | 경로 제공자 | 지도/장소 검색은 Kakao, 도보 경로 후보는 Mapbox Directions API를 사용합니다. 따라서 두 서비스의 키가 모두 필요합니다. |
 | Wear OS | Firebase가 아닌 Google Play services Wearable Data Layer를 사용합니다. 호환 기기 페어링과 같은 앱 ID가 필요합니다. |
 
@@ -138,7 +138,6 @@ wear/
 
 - `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`: 현재 위치 표시와 출발지 설정
 - `INTERNET`: Kakao 지도/장소 검색, Mapbox 경로 요청, Google 로그인, Wearable 서비스 연결
-- `RECORD_AUDIO`, `CAMERA`: 설정·프로필 화면에서 권한 상태를 확인하거나 요청할 수 있음
 - 보호자와 일부 설정: 기기의 `SharedPreferences`에 로컬 저장
 - 위치 공유: 사용자가 직접 실행한 Android 공유 Intent로만 전달
 

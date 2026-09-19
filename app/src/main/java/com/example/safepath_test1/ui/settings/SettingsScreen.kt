@@ -24,6 +24,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -49,16 +51,20 @@ import com.example.safepath_test1.ui.theme.TextMuted
 @Composable
 fun SettingsScreen(
     hasLocationPermission: Boolean,
-    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val preferences = remember(context) {
         context.getSharedPreferences("safe_path_settings", Context.MODE_PRIVATE)
     }
-    var shareLocation by remember { mutableStateOf(preferences.getBoolean("share_location", true)) }
-    var safetyAlerts by remember { mutableStateOf(preferences.getBoolean("safety_alerts", true)) }
-    var avoidRiskAreas by remember { mutableStateOf(preferences.getBoolean("avoid_risk_areas", true)) }
+    var sosEnabled by remember { mutableStateOf(preferences.getBoolean("sos_enabled", true)) }
+    var showDataUsage by remember { mutableStateOf(false) }
+    val versionName = remember(context) {
+        runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        }.getOrNull() ?: "-"
+    }
 
     Column(
         modifier = modifier
@@ -90,17 +96,9 @@ fun SettingsScreen(
         PageHeader("설정", "안전 기능과 위치 권한을 관리하세요")
         SettingsGroup(
             rows = listOf(
-                Triple("실시간 위치 공유", shareLocation) {
-                    shareLocation = it
-                    preferences.edit().putBoolean("share_location", it).apply()
-                },
-                Triple("주변 위험 알림", safetyAlerts) {
-                    safetyAlerts = it
-                    preferences.edit().putBoolean("safety_alerts", it).apply()
-                },
-                Triple("위험지역 자동 회피", avoidRiskAreas) {
-                    avoidRiskAreas = it
-                    preferences.edit().putBoolean("avoid_risk_areas", it).apply()
+                Triple("SOS 위치 공유 버튼", sosEnabled) {
+                    sosEnabled = it
+                    preferences.edit().putBoolean("sos_enabled", it).apply()
                 },
             ),
         )
@@ -123,73 +121,25 @@ fun SettingsScreen(
                     )
                 }
                 HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = AppBorder)
-                SettingsLinkRow(
-                    title = "마이크 권한 (긴급 녹음)",
-                    value = if (hasMicPermission(context)) "허용됨" else "허용 필요",
-                ) {
-                    requestPermission(context, android.Manifest.permission.RECORD_AUDIO)
-                }
+                SettingsLinkRow("데이터 이용 안내", "보기") { showDataUsage = true }
                 HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = AppBorder)
-                SettingsLinkRow(
-                    title = "카메라 권한 (주변 촬영)",
-                    value = if (hasCameraPermission(context)) "허용됨" else "허용 필요",
-                ) {
-                    requestPermission(context, android.Manifest.permission.CAMERA)
-                }
-                HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = AppBorder)
-                SettingsLinkRow("개인정보 처리방침", "준비 중")
-                HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = AppBorder)
-                SettingsLinkRow("앱 버전", "1.0.0")
-            }
-        }
-
-        Text("테스트 기능 (디버깅)", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        ) {
-            Column {
-                SettingsLinkRow(
-                    title = "SOS 팝업 테스트",
-                    value = "실행",
-                ) {
-                    android.widget.Toast.makeText(context, "SOS 기능 테스트 실행 완료", android.widget.Toast.LENGTH_SHORT).show()
-                }
-                HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = AppBorder)
-                SettingsLinkRow(
-                    title = "UI 알림 발생",
-                    value = "실행",
-                ) {
-                    android.widget.Toast.makeText(context, "가상의 위험 지역 진입 알림!", android.widget.Toast.LENGTH_SHORT).show()
-                }
+                SettingsLinkRow("앱 버전", versionName)
             }
         }
     }
-}
 
-private fun hasMicPermission(context: Context): Boolean {
-    return androidx.core.content.ContextCompat.checkSelfPermission(
-        context, android.Manifest.permission.RECORD_AUDIO
-    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-}
-
-private fun hasCameraPermission(context: Context): Boolean {
-    return androidx.core.content.ContextCompat.checkSelfPermission(
-        context, android.Manifest.permission.CAMERA
-    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-}
-
-private fun requestPermission(context: Context, permission: String) {
-    if (context is android.app.Activity) {
-        androidx.core.app.ActivityCompat.requestPermissions(context, arrayOf(permission), 100)
-    } else {
-        context.startActivity(
-            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.fromParts("package", context.packageName, null)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
+    if (showDataUsage) {
+        AlertDialog(
+            onDismissRequest = { showDataUsage = false },
+            title = { Text("데이터 이용 안내") },
+            text = {
+                Text(
+                    "보호자와 설정 정보는 이 기기에 저장됩니다. 장소 검색어와 중심 좌표는 Kakao에, 출발지·도착지 좌표는 Mapbox에 전송됩니다. Google 로그인 시 계정 인증 정보는 Google과 Firebase에서 처리됩니다. 위치 공유는 사용자가 공유 화면에서 앱과 대상을 선택한 경우에만 실행됩니다.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showDataUsage = false }) { Text("확인") }
+            },
         )
     }
 }
