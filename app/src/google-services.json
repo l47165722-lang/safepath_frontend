@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "222720972977-bg67fsjqshreadn0ra9l70rtrsdq640o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.safepath_test1",
+            "certificate_hash": "e21e14f01e9abb9071e23b600f4db7f258ab719c"
+          }
+        },
+        {
           "client_id": "222720972977-l1ult7c3lrnjtallbe5vi05b4ciqjkfb.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
