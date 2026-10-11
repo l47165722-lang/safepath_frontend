@@ -19,11 +19,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.safepath_test1.wear.sensors.WatchMotionSender
-import com.example.safepath_test1.wear.sensors.WatchSensorManager
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
+import com.example.safepath_test1.wear.sensors.WatchMotionSender
+import com.example.safepath_test1.wear.sensors.WatchSensorManager
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataMapItem
@@ -41,17 +41,20 @@ internal fun isStatusStale(updatedAt: Long, now: Long = System.currentTimeMillis
 
 private sealed class RouteStatus {
     data object Idle : RouteStatus()
+
     data object Searching : RouteStatus()
-    data class Found(val routeType: String, val distanceKm: String, val destinationName: String?) : RouteStatus()
+
+    data class Found(val routeType: String, val distanceKm: String, val destinationName: String?) :
+        RouteStatus()
+
     data object Stale : RouteStatus()
 }
 
 /**
- * Experimental counterpart to WearApp.kt: syncs status over the Wearable
- * Data Layer's DataClient instead of Firebase. Uses DataClient (not
- * MessageClient) — see WearMessenger.kt on the phone side for why.
- * No pairing code screen here - Bluetooth pairing between this watch and
- * a phone already scopes who can push data to it.
+ * Experimental counterpart to WearApp.kt: syncs status over the Wearable Data Layer's DataClient
+ * instead of Firebase. Uses DataClient (not MessageClient) — see WearMessenger.kt on the phone side
+ * for why. No pairing code screen here - Bluetooth pairing between this watch and a phone already
+ * scopes who can push data to it.
  */
 @Composable
 fun WearApp() {
@@ -59,8 +62,7 @@ fun WearApp() {
     var status by remember { mutableStateOf<RouteStatus>(RouteStatus.Idle) }
     var lastReceivedAt by remember { mutableStateOf(0L) }
 
-    // WatchSensorManager로 모은 가속도/자이로 값은 WearDataRelayService 구현 전까지는
-    // Logcat(tag=WatchSensorManager)으로 확인한다.
+    // 최신 센서 값을 폰의 WearDataRelayService로 전달한다. AI 서버 연동은 아직 구현되지 않았다.
     val sensorManager = remember { WatchSensorManager(context) }
     DisposableEffect(Unit) {
         sensorManager.startAccelCollection()
@@ -76,15 +78,17 @@ fun WearApp() {
     fun applyDataMap(dataMap: com.google.android.gms.wearable.DataMap) {
         val updatedAt = dataMap.getLong("updatedAt")
         lastReceivedAt = updatedAt
-        val receivedStatus = when (dataMap.getString("state")) {
-            "SEARCHING" -> RouteStatus.Searching
-            "FOUND" -> RouteStatus.Found(
-                routeType = dataMap.getString("routeType") ?: "경로",
-                distanceKm = "%.1f".format(dataMap.getDouble("distanceMeters") / 1000.0),
-                destinationName = dataMap.getString("destinationName"),
-            )
-            else -> RouteStatus.Idle
-        }
+        val receivedStatus =
+            when (dataMap.getString("state")) {
+                "SEARCHING" -> RouteStatus.Searching
+                "FOUND" ->
+                    RouteStatus.Found(
+                        routeType = dataMap.getString("routeType") ?: "경로",
+                        distanceKm = "%.1f".format(dataMap.getDouble("distanceMeters") / 1000.0),
+                        destinationName = dataMap.getString("destinationName"),
+                    )
+                else -> RouteStatus.Idle
+            }
         status = if (isStatusStale(updatedAt)) RouteStatus.Stale else receivedStatus
         Log.i(TAG, "New status=$status")
     }
@@ -93,7 +97,8 @@ fun WearApp() {
     // only delivers *future* changes, not the item as it stood before we
     // started listening).
     DisposableEffect(Unit) {
-        Wearable.getDataClient(context).dataItems
+        Wearable.getDataClient(context)
+            .dataItems
             .addOnSuccessListener { dataItems ->
                 for (i in 0 until dataItems.count) {
                     val item = dataItems[i]
@@ -104,7 +109,7 @@ fun WearApp() {
                 dataItems.release()
             }
             .addOnFailureListener { e -> Log.e(TAG, "Failed to read existing DataItems", e) }
-        onDispose { }
+        onDispose {}
     }
 
     DisposableEffect(Unit) {
@@ -112,7 +117,9 @@ fun WearApp() {
         val listener = DataClient.OnDataChangedListener { dataEvents ->
             for (event in dataEvents) {
                 Log.i(TAG, "DataEvent type=${event.type} path=${event.dataItem.uri.path}")
-                if (event.type == DataEvent.TYPE_CHANGED && event.dataItem.uri.path == PATH_STATUS) {
+                if (
+                    event.type == DataEvent.TYPE_CHANGED && event.dataItem.uri.path == PATH_STATUS
+                ) {
                     applyDataMap(DataMapItem.fromDataItem(event.dataItem).dataMap)
                 }
             }
@@ -129,9 +136,10 @@ fun WearApp() {
     LaunchedEffect(Unit) {
         while (true) {
             delay(30_000)
-            if (lastReceivedAt > 0 &&
-                System.currentTimeMillis() - lastReceivedAt > STALE_AFTER_MS &&
-                status !is RouteStatus.Stale
+            if (
+                lastReceivedAt > 0 &&
+                    System.currentTimeMillis() - lastReceivedAt > STALE_AFTER_MS &&
+                    status !is RouteStatus.Stale
             ) {
                 status = RouteStatus.Stale
             }
@@ -161,7 +169,11 @@ fun WearApp() {
                         Text(text = "✅ ${current.routeType}", textAlign = TextAlign.Center)
                         Text(text = "${current.distanceKm} km", textAlign = TextAlign.Center)
                         current.destinationName?.let {
-                            Text(text = it, textAlign = TextAlign.Center, style = MaterialTheme.typography.caption2)
+                            Text(
+                                text = it,
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.caption2,
+                            )
                         }
                     }
                     RouteStatus.Stale -> {

@@ -5,52 +5,55 @@ import android.content.pm.PackageManager
 import android.location.LocationListener
 import android.location.LocationManager
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.mapSaver
-import androidx.compose.runtime.setValue
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.mapSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.safepath_test1.friends.CreatedFriendInvite
+import com.example.safepath_test1.location.shareLocation
 import com.example.safepath_test1.model.GeoPoint
 import com.example.safepath_test1.model.PlaceSelection
 import com.example.safepath_test1.ui.SafePathTab
 import com.example.safepath_test1.ui.components.SafePathBottomBar
+import com.example.safepath_test1.ui.guardian.FriendsScreen
 import com.example.safepath_test1.ui.guardian.GuardianScreen
 import com.example.safepath_test1.ui.home.HomeScreen
 import com.example.safepath_test1.ui.login.LoginPage
+import com.example.safepath_test1.ui.login.SignupScreen
 import com.example.safepath_test1.ui.profile.ProfileScreen
-import com.example.safepath_test1.ui.safetymap.SafetyMapScreen
 import com.example.safepath_test1.ui.theme.AppBackground
 import com.example.safepath_test1.ui.theme.SafePathTheme
-import com.example.safepath_test1.location.shareLocation
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun SafePathApp() {
     val auth = remember { FirebaseAuth.getInstance() }
     var firebaseUser by remember { mutableStateOf(auth.currentUser) }
-    var isDemoLoggedIn by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(auth) {
         val listener = FirebaseAuth.AuthStateListener { firebaseUser = it.currentUser }
@@ -58,19 +61,25 @@ fun SafePathApp() {
         onDispose { auth.removeAuthStateListener(listener) }
     }
 
+    val context = LocalContext.current
+    var profileVersion by remember { mutableIntStateOf(0) }
+    val profile =
+        context.getSharedPreferences("safe_path_profile", android.content.Context.MODE_PRIVATE)
+    val needsSignup =
+        remember(firebaseUser?.uid, profileVersion) {
+            firebaseUser != null && profile.getString("onboarded_uid", null) != firebaseUser?.uid
+        }
     SafePathTheme {
-        if (firebaseUser != null || isDemoLoggedIn) {
+        if (needsSignup) {
+            SignupScreen(onComplete = { profileVersion++ }, onBack = { auth.signOut() })
+        } else if (firebaseUser != null) {
             SafePathMain(
                 onLogout = {
                     auth.signOut()
-                    isDemoLoggedIn = false
-                },
+                }
             )
         } else {
-            LoginPage(
-                onLoginSuccess = { isDemoLoggedIn = true },
-                onDemoLogin = { isDemoLoggedIn = true },
-            )
+            LoginPage(onLoginSuccess = { firebaseUser = auth.currentUser })
         }
     }
 }
@@ -81,18 +90,23 @@ private fun SafePathMain(onLogout: () -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     var selectedTab by rememberSaveable { mutableStateOf(SafePathTab.Home.name) }
     var currentLocation by remember { mutableStateOf<GeoPoint?>(null) }
-    var origin by rememberSaveable(stateSaver = placeSelectionSaver) { mutableStateOf(PlaceSelection()) }
-    var destination by rememberSaveable(stateSaver = placeSelectionSaver) { mutableStateOf(PlaceSelection()) }
+    var origin by
+        rememberSaveable(stateSaver = placeSelectionSaver) { mutableStateOf(PlaceSelection()) }
+    var destination by
+        rememberSaveable(stateSaver = placeSelectionSaver) { mutableStateOf(PlaceSelection()) }
     var showSosConfirmation by rememberSaveable { mutableStateOf(false) }
+    var preparedInvite by remember { mutableStateOf<CreatedFriendInvite?>(null) }
+    var shareError by remember { mutableStateOf<String?>(null) }
     var hasLocationPermission by remember {
         mutableStateOf(isLocationPermissionGranted(context))
     }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-    ) { result ->
-        hasLocationPermission = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-    }
+    val permissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            result ->
+            hasLocationPermission =
+                result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                    result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        }
 
     LaunchedEffect(Unit) {
         if (!hasLocationPermission) {
@@ -100,14 +114,14 @@ private fun SafePathMain(onLogout: () -> Unit) {
                 arrayOf(
                     Manifest.permission.ACCESS_FINE_LOCATION,
                     Manifest.permission.ACCESS_COARSE_LOCATION,
-                ),
+                )
             )
         }
     }
 
     DisposableEffect(hasLocationPermission) {
         if (!hasLocationPermission) {
-            onDispose { }
+            onDispose {}
         } else {
             val locationManager = context.getSystemService(LocationManager::class.java)
             val listener = LocationListener { location ->
@@ -122,11 +136,16 @@ private fun SafePathMain(onLogout: () -> Unit) {
                 try {
                     locationManager.getLastKnownLocation(provider)
                 } catch (exception: SecurityException) {
-                    Log.w("SafePathApp", "No permission to read last known location from $provider", exception)
+                    Log.w(
+                        "SafePathApp",
+                        "No permission to read last known location from $provider",
+                        exception,
+                    )
                     null
                 }
             }
-            lastKnownLocations.maxByOrNull { location -> location.time }
+            lastKnownLocations
+                .maxByOrNull { location -> location.time }
                 ?.let { location ->
                     currentLocation = GeoPoint(location.latitude, location.longitude)
                 }
@@ -139,7 +158,11 @@ private fun SafePathMain(onLogout: () -> Unit) {
                         Log.w("SafePathApp", "$provider is disabled on this device")
                     }
                 } catch (exception: SecurityException) {
-                    Log.w("SafePathApp", "No permission to request updates from $provider", exception)
+                    Log.w(
+                        "SafePathApp",
+                        "No permission to request updates from $provider",
+                        exception,
+                    )
                 }
             }
 
@@ -148,14 +171,12 @@ private fun SafePathMain(onLogout: () -> Unit) {
     }
 
     val tab = SafePathTab.entries.find { it.name == selectedTab } ?: SafePathTab.Home
+    BackHandler(enabled = tab != SafePathTab.Home) { selectedTab = SafePathTab.Home.name }
 
-    Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(AppBackground),
-        ) {
-            when (tab) {
-                SafePathTab.Home -> HomeScreen(
+    Box(modifier = Modifier.fillMaxSize().background(AppBackground)) {
+        when (tab) {
+            SafePathTab.Home ->
+                HomeScreen(
                     currentLocation = currentLocation,
                     hasLocationPermission = hasLocationPermission,
                     origin = origin,
@@ -169,64 +190,113 @@ private fun SafePathMain(onLogout: () -> Unit) {
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
-                SafePathTab.SafetyMap -> SafetyMapScreen(
-                    currentLocation = currentLocation,
+            SafePathTab.Friends ->
+                FriendsScreen(
+                    onInviteCreated = { invite ->
+                        preparedInvite = invite
+                        shareError =
+                            com.example.safepath_test1.friends.shareFriendInvite(context, invite)
+                    },
                     modifier = Modifier.padding(bottom = 100.dp),
                 )
-                SafePathTab.Guardian -> GuardianScreen(
-                    currentLocation = currentLocation,
-                    modifier = Modifier.padding(bottom = 100.dp),
-                )
-                SafePathTab.Profile -> ProfileScreen(
+            SafePathTab.Guardian -> GuardianScreen(modifier = Modifier.padding(bottom = 100.dp))
+            SafePathTab.Profile ->
+                ProfileScreen(
                     hasLocationPermission = hasLocationPermission,
                     onLogout = onLogout,
+                    onSosClick = {
+                        if (
+                            context
+                                .getSharedPreferences(
+                                    "safe_path_settings",
+                                    android.content.Context.MODE_PRIVATE,
+                                )
+                                .getBoolean("sos_enabled", true)
+                        )
+                            showSosConfirmation = true
+                        else
+                            android.widget.Toast.makeText(
+                                    context,
+                                    "설정에서 SOS 버튼을 활성화해 주세요.",
+                                    android.widget.Toast.LENGTH_SHORT,
+                                )
+                                .show()
+                    },
                     modifier = Modifier.padding(bottom = 100.dp),
                 )
-            }
+        }
 
-            SafePathBottomBar(
-                selectedTab = tab,
-                onTabSelected = { selectedTab = it.name },
-                onSosClick = {
-                    val sosEnabled = context.getSharedPreferences("safe_path_settings", android.content.Context.MODE_PRIVATE)
-                        .getBoolean("sos_enabled", true)
-                    if (sosEnabled) {
-                        showSosConfirmation = true
-                    } else {
-                        android.widget.Toast.makeText(context, "설정에서 SOS 버튼을 활성화해 주세요.", android.widget.Toast.LENGTH_SHORT).show()
+        SafePathBottomBar(
+            selectedTab = tab,
+            onTabSelected = { selectedTab = it.name },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+
+        preparedInvite?.let { invite ->
+            AlertDialog(
+                onDismissRequest = { preparedInvite = null },
+                title = { Text("카카오톡 친구 요청") },
+                text = {
+                    Text(
+                        shareError ?: "카카오톡에서 받을 친구를 선택하고 메시지를 보내 주세요. 상대방이 링크에서 수락하면 친구 목록에 표시됩니다."
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            shareError =
+                                com.example.safepath_test1.friends.shareFriendInvite(
+                                    context,
+                                    invite,
+                                )
+                        }
+                    ) {
+                        Text("카카오톡 다시 열기")
                     }
                 },
-                modifier = Modifier.align(Alignment.BottomCenter),
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            preparedInvite = null
+                            shareError = null
+                        }
+                    ) {
+                        Text("닫기")
+                    }
+                },
             )
+        }
 
-            if (showSosConfirmation) {
-                AlertDialog(
-                    onDismissRequest = { showSosConfirmation = false },
-                    title = { Text("긴급 위치를 공유할까요?") },
-                    text = {
-                        Text(
-                            if (currentLocation == null) {
-                                "현재 위치를 아직 확인하지 못했습니다. 위치가 확인된 뒤 다시 시도해 주세요."
-                            } else {
-                                "공유할 앱과 대상을 다음 화면에서 직접 선택합니다. SafePath가 자동으로 신고하거나 문자를 보내지는 않습니다."
-                            },
-                        )
-                    },
-                    confirmButton = {
-                        Button(
-                            enabled = currentLocation != null,
-                            onClick = {
-                                if (shareLocation(context, currentLocation, isEmergency = true)) {
-                                    showSosConfirmation = false
-                                }
-                            },
-                        ) { Text("공유 화면 열기") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showSosConfirmation = false }) { Text("취소") }
-                    },
-                )
-            }
+        if (showSosConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showSosConfirmation = false },
+                title = { Text("긴급 위치를 공유할까요?") },
+                text = {
+                    Text(
+                        if (currentLocation == null) {
+                            "현재 위치를 아직 확인하지 못했습니다. 위치가 확인된 뒤 다시 시도해 주세요."
+                        } else {
+                            "공유할 앱과 대상을 다음 화면에서 직접 선택합니다. SafePath가 자동으로 신고하거나 문자를 보내지는 않습니다."
+                        }
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        enabled = currentLocation != null,
+                        onClick = {
+                            if (shareLocation(context, currentLocation, isEmergency = true)) {
+                                showSosConfirmation = false
+                            }
+                        },
+                    ) {
+                        Text("공유 화면 열기")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSosConfirmation = false }) { Text("취소") }
+                },
+            )
+        }
     }
 
     DisposableEffect(lifecycleOwner, context) {
@@ -240,10 +310,23 @@ private fun SafePathMain(onLogout: () -> Unit) {
     }
 }
 
-private val placeSelectionSaver = mapSaver(
-    save = { place -> mapOf("name" to place.name, "latitude" to place.latitude, "longitude" to place.longitude) },
-    restore = { values -> PlaceSelection(values["name"] as String, values["latitude"] as Double?, values["longitude"] as Double?) },
-)
+private val placeSelectionSaver =
+    mapSaver(
+        save = { place ->
+            mapOf(
+                "name" to place.name,
+                "latitude" to place.latitude,
+                "longitude" to place.longitude,
+            )
+        },
+        restore = { values ->
+            PlaceSelection(
+                values["name"] as String,
+                values["latitude"] as Double?,
+                values["longitude"] as Double?,
+            )
+        },
+    )
 
 private fun isLocationPermissionGranted(context: android.content.Context): Boolean {
     return ContextCompat.checkSelfPermission(

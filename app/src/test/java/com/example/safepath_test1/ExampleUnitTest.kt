@@ -1,9 +1,9 @@
 package com.example.safepath_test1
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
 import com.example.safepath_test1.location.LocationShareFormatter
 import com.example.safepath_test1.model.GeoPoint
+import org.junit.Assert.assertEquals
+import org.junit.Test
 
 class ExampleUnitTest {
     @Test

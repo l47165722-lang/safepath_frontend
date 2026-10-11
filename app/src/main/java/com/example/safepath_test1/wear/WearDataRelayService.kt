@@ -12,12 +12,12 @@ private const val TAG = "WearDataRelayService"
 private const val PATH_MOTION = "/safepath/motion"
 
 /**
- * Receives each accelerometer/gyroscope reading relayed from the watch
- * (WatchMotionSender, wear module) over the Wearable Data Layer.
+ * Receives each accelerometer/gyroscope reading relayed from the watch (WatchMotionSender, wear
+ * module) over the Wearable Data Layer.
  *
- * This is the watch -> phone half only. For now it just logs what arrives;
- * once the AI server's analyzeMotion() request/response format is agreed
- * with the AI teammate, the HTTP call to the AI server goes here.
+ * This is the watch -> phone half only. For now it just logs what arrives; once the AI server's
+ * analyzeMotion() request/response format is agreed with the AI teammate, the HTTP call to the AI
+ * server goes here.
  */
 class WearDataRelayService : WearableListenerService() {
 
@@ -37,9 +37,15 @@ class WearDataRelayService : WearableListenerService() {
 
             Log.d(
                 TAG,
-                "accel=(%.2f, %.2f, %.2f) gyro=(%.2f, %.2f, %.2f) timestamp=$timestamp".format(
-                    accelX, accelY, accelZ, gyroX, gyroY, gyroZ,
-                ),
+                "accel=(%.2f, %.2f, %.2f) gyro=(%.2f, %.2f, %.2f) timestamp=$timestamp"
+                    .format(
+                        accelX,
+                        accelY,
+                        accelZ,
+                        gyroX,
+                        gyroY,
+                        gyroZ,
+                    ),
             )
         }
     }

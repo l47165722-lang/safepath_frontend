@@ -1,0 +1,17 @@
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{kt,kts}]
+indent_size = 4
+max_line_length = 100
+ij_kotlin_indent_size = 4
+ij_kotlin_continuation_indent_size = 4
+
+[*.{js,cjs,json,html,css,xml}]
+indent_size = 2
+max_line_length = 100

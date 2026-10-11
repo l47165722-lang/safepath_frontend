@@ -6,30 +6,45 @@ plugins {
     alias(libs.plugins.google.services) // 파이어베이
 }
 
-val localProperties = Properties().apply {
-    val localPropertiesFile = rootProject.file("local.properties")
-    if (localPropertiesFile.exists()) {
-        localPropertiesFile.inputStream().use { load(it) }
+val localProperties =
+    Properties().apply {
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localPropertiesFile.inputStream().use { load(it) }
+        }
     }
-}
 
-val mapboxAccessToken = providers.gradleProperty("MAPBOX_ACCESS_TOKEN")
-    .orElse(localProperties.getProperty("MAPBOX_ACCESS_TOKEN") ?: "")
-    .get()
-    .trim()
-    .replace("\"", "")
+val mapboxAccessToken =
+    providers
+        .gradleProperty("MAPBOX_ACCESS_TOKEN")
+        .orElse(localProperties.getProperty("MAPBOX_ACCESS_TOKEN") ?: "")
+        .get()
+        .trim()
+        .replace("\"", "")
 
-val kakaoRestApiKey = providers.gradleProperty("KAKAO_REST_API_KEY")
-    .orElse(localProperties.getProperty("KAKAO_REST_API_KEY") ?: "")
-    .get()
-    .trim()
-    .replace("\"", "")
+val kakaoRestApiKey =
+    providers
+        .gradleProperty("KAKAO_REST_API_KEY")
+        .orElse(localProperties.getProperty("KAKAO_REST_API_KEY") ?: "")
+        .get()
+        .trim()
+        .replace("\"", "")
 
-val kakaoNativeAppKey = providers.gradleProperty("KAKAO_NATIVE_APP_KEY")
-    .orElse(localProperties.getProperty("KAKAO_NATIVE_APP_KEY") ?: "")
-    .get()
-    .trim()
-    .replace("\"", "")
+val kakaoNativeAppKey =
+    providers
+        .gradleProperty("KAKAO_NATIVE_APP_KEY")
+        .orElse(localProperties.getProperty("KAKAO_NATIVE_APP_KEY") ?: "")
+        .get()
+        .trim()
+        .replace("\"", "")
+
+val friendsApiBaseUrl =
+    providers
+        .gradleProperty("FRIENDS_API_BASE_URL")
+        .orElse(localProperties.getProperty("FRIENDS_API_BASE_URL") ?: "")
+        .get()
+        .trim()
+        .trimEnd('/')
 
 android {
     namespace = "com.example.safepath_test1"
@@ -48,6 +63,7 @@ android {
         resValue("string", "mapbox_access_token", mapboxAccessToken)
         resValue("string", "kakao_rest_api_key", kakaoRestApiKey)
         resValue("string", "kakao_native_app_key", kakaoNativeAppKey)
+        resValue("string", "friends_api_base_url", friendsApiBaseUrl)
     }
 
     buildTypes {

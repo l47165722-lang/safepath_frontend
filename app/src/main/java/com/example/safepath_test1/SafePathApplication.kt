@@ -26,19 +26,23 @@ class SafePathApplication : Application() {
 
     private fun getKeyHash(): String? {
         return try {
-            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-            } else {
-                @Suppress("DEPRECATION")
-                packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES)
-            }
+            val packageInfo =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    packageManager.getPackageInfo(
+                        packageName,
+                        PackageManager.GET_SIGNING_CERTIFICATES,
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES)
+                }
 
-            val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageInfo.signingInfo?.apkContentsSigners
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo.signatures
-            }
+            val signatures =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    packageInfo.signingInfo?.apkContentsSigners
+                } else {
+                    @Suppress("DEPRECATION") packageInfo.signatures
+                }
 
             signatures?.firstOrNull()?.let { signature ->
                 val md = MessageDigest.getInstance("SHA")

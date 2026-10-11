@@ -1,5 +1,6 @@
 *.iml
 .gradle
+.kotlin/
 /local.properties
 /.idea/caches
 /.idea/libraries
@@ -17,3 +18,10 @@ local.properties
 
 # Mapbox secret token
 mapbox_access_token.xml
+
+# Friend request server dependencies and secrets
+**/node_modules/
+backend/.firebase/
+backend/functions/.env*
+backend/functions/.secret.local
+backend/*-debug.log

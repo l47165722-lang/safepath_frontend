@@ -1,0 +1,36 @@
+{
+  "functions": [
+    { "source": "functions", "codebase": "friends", "ignore": ["node_modules", "test", "*.log"] }
+  ],
+  "firestore": { "rules": "firestore.rules" },
+  "hosting": {
+    "public": "public",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "function": { "functionId": "friendsApi", "region": "asia-northeast3" }
+      }
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "Referrer-Policy", "value": "no-referrer" },
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Cache-Control", "value": "no-store" },
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://www.google.com https://www.recaptcha.net https://apis.google.com; frame-src https://*.firebaseapp.com https://www.google.com https://recaptcha.google.com https://www.recaptcha.net; connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.google.com; style-src 'self'; img-src 'self' data: https://*.googleusercontent.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+          }
+        ]
+      }
+    ]
+  },
+  "emulators": {
+    "auth": { "port": 9099 },
+    "firestore": { "port": 8080 },
+    "functions": { "port": 5001 },
+    "hosting": { "port": 5000 }
+  }
+}

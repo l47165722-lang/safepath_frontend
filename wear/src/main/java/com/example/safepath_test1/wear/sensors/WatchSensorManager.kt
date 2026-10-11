@@ -10,22 +10,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * One combined accelerometer + gyroscope reading.
- * Mirrors the MotionData class in the team class diagram - this is the
- * value WatchSensorManager will eventually hand to WearDataRelayService
- * on the phone side via sendMotionData().
- */
-data class MotionData(
-    val accelX: Float,
-    val accelY: Float,
-    val accelZ: Float,
-    val gyroX: Float,
-    val gyroY: Float,
-    val gyroZ: Float,
-    val timestamp: Long,
-)
-
 private const val TAG = "WatchSensorManager"
 
 /** 20Hz (1000ms / 20 = 50ms per sample) - matches the window rate the AI motion model expects. */
@@ -34,20 +18,14 @@ private const val SAMPLING_PERIOD_US = 50_000
 /**
  * Reads the watch's built-in accelerometer and gyroscope.
  *
- * Usage (typically from a DisposableEffect so collection stops when the
- * screen leaves composition):
- *   val sensorManager = remember { WatchSensorManager(context) }
- *   DisposableEffect(Unit) {
- *       sensorManager.startAccelCollection()
- *       sensorManager.startGyroCollection()
- *       onDispose { sensorManager.stopCollection() }
- *   }
- *   val motion by sensorManager.motionData.collectAsState()
+ * Usage (typically from a DisposableEffect so collection stops when the screen leaves composition):
+ * val sensorManager = remember { WatchSensorManager(context) } DisposableEffect(Unit) {
+ * sensorManager.startAccelCollection() sensorManager.startGyroCollection() onDispose {
+ * sensorManager.stopCollection() } } val motion by sensorManager.motionData.collectAsState()
  *
- * Samples at a fixed 20Hz (SAMPLING_PERIOD_US) rather than the old ~5Hz default
- * so the relayed data has enough resolution for motion analysis. No runtime
- * permission is needed for this rate - HIGH_SAMPLING_RATE_SENSORS is only
- * required above 200Hz on Android 12+.
+ * Samples at a fixed 20Hz (SAMPLING_PERIOD_US) rather than the old ~5Hz default so the relayed data
+ * has enough resolution for motion analysis. No runtime permission is needed for this rate -
+ * HIGH_SAMPLING_RATE_SENSORS is only required above 200Hz on Android 12+.
  */
 class WatchSensorManager(context: Context) {
 
@@ -56,53 +34,71 @@ class WatchSensorManager(context: Context) {
     private val accelerometer: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     private val gyroscope: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
 
-    private var lastAccel = Triple(0f, 0f, 0f)
-    private var lastGyro = Triple(0f, 0f, 0f)
+    private val accumulator = MotionSampleAccumulator()
 
     private val _motionData = MutableStateFlow<MotionData?>(null)
     /** Latest combined reading. null until both sensors have reported at least once. */
     val motionData: StateFlow<MotionData?> = _motionData.asStateFlow()
 
-    val hasAccelerometer: Boolean get() = accelerometer != null
-    val hasGyroscope: Boolean get() = gyroscope != null
+    val hasAccelerometer: Boolean
+        get() = accelerometer != null
 
-    private val listener = object : SensorEventListener {
-        override fun onSensorChanged(event: SensorEvent) {
-            when (event.sensor.type) {
-                Sensor.TYPE_ACCELEROMETER ->
-                    lastAccel = Triple(event.values[0], event.values[1], event.values[2])
-                Sensor.TYPE_GYROSCOPE ->
-                    lastGyro = Triple(event.values[0], event.values[1], event.values[2])
-                else -> return
+    val hasGyroscope: Boolean
+        get() = gyroscope != null
+
+    private val listener =
+        object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                val updated =
+                    when (event.sensor.type) {
+                        Sensor.TYPE_ACCELEROMETER ->
+                            accumulator.updateAcceleration(
+                                event.values[0],
+                                event.values[1],
+                                event.values[2],
+                                event.timestamp,
+                                System.currentTimeMillis(),
+                            )
+                        Sensor.TYPE_GYROSCOPE ->
+                            accumulator.updateRotation(
+                                event.values[0],
+                                event.values[1],
+                                event.values[2],
+                                event.timestamp,
+                                System.currentTimeMillis(),
+                            )
+                        else -> return
+                    } ?: return
+                _motionData.value = updated
+                Log.d(
+                    TAG,
+                    "accel=(%.2f, %.2f, %.2f) gyro=(%.2f, %.2f, %.2f)"
+                        .format(
+                            updated.accelX,
+                            updated.accelY,
+                            updated.accelZ,
+                            updated.gyroX,
+                            updated.gyroY,
+                            updated.gyroZ,
+                        ),
+                )
             }
-            val updated = MotionData(
-                accelX = lastAccel.first,
-                accelY = lastAccel.second,
-                accelZ = lastAccel.third,
-                gyroX = lastGyro.first,
-                gyroY = lastGyro.second,
-                gyroZ = lastGyro.third,
-                timestamp = System.currentTimeMillis(),
-            )
-            _motionData.value = updated
-            Log.d(
-                TAG,
-                "accel=(%.2f, %.2f, %.2f) gyro=(%.2f, %.2f, %.2f)".format(
-                    updated.accelX, updated.accelY, updated.accelZ,
-                    updated.gyroX, updated.gyroY, updated.gyroZ,
-                ),
-            )
+
+            override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
         }
 
-        override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
-    }
-
-    /** Starts listening to the accelerometer. Safe to call even if startGyroCollection() is also called. */
+    /**
+     * Starts listening to the accelerometer. Safe to call even if startGyroCollection() is also
+     * called.
+     */
     fun startAccelCollection() {
         accelerometer?.let { sensorManager.registerListener(listener, it, SAMPLING_PERIOD_US) }
     }
 
-    /** Starts listening to the gyroscope. Safe to call even if startAccelCollection() is also called. */
+    /**
+     * Starts listening to the gyroscope. Safe to call even if startAccelCollection() is also
+     * called.
+     */
     fun startGyroCollection() {
         gyroscope?.let { sensorManager.registerListener(listener, it, SAMPLING_PERIOD_US) }
     }
@@ -110,5 +106,7 @@ class WatchSensorManager(context: Context) {
     /** Stops both. Call this from onDispose so the sensors don't keep draining the battery. */
     fun stopCollection() {
         sensorManager.unregisterListener(listener)
+        accumulator.reset()
+        _motionData.value = null
     }
 }
