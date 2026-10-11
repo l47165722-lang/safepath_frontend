@@ -1,5 +1,6 @@
 package com.example.safepath_test1.ui.home
 
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -82,6 +83,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.safepath_test1.api.RetrofitClient
 import com.example.safepath_test1.location.KakaoPlace
 import com.example.safepath_test1.location.RouteResult
 import com.example.safepath_test1.model.GeoPoint
@@ -151,6 +153,21 @@ fun HomeScreen(
     val destinationPoint =
         if (destination.hasCoordinates()) GeoPoint(destination.latitude!!, destination.longitude!!)
         else null
+
+    LaunchedEffect(Unit) {
+        try {
+            val facilities = RetrofitClient.api.getFacilities()
+
+            facilities.forEach {
+                Log.d(
+                    "SAFEPATH_API",
+                    "${it.id} ${it.type} ${it.name} ${it.latitude} ${it.longitude}",
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("SAFEPATH_API", "API 호출 실패: ${e.message}", e)
+        }
+    }
 
     LaunchedEffect(destination.name, isDestinationSearchOpen) {
         homeViewModel.searchPlaces(destination.name, isDestinationSearchOpen, currentLocation)
