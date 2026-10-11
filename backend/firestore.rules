@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Friends data is accessible only through the authenticated Admin API.
+    // This scoped rule does not grant access to other application collections.
+    match /friendRequests/{id} {
+      allow read, write: if false;
+    }
+    match /friendRequestSubmissions/{id} {
+      allow read, write: if false;
+    }
+    match /friendRequestPending/{id} {
+      allow read, write: if false;
+    }
+    match /friendRequestLimits/{id} {
+      allow read, write: if false;
+    }
+    match /friendUsers/{uid}/friends/{friendUid} {
+      allow read, write: if false;
+    }
+  }
+}

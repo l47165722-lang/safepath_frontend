@@ -36,7 +36,8 @@ class NavigationRepositoryTest {
     @Test
     fun missingSafetyCoverage_usesShortestAndExplainsFallback() {
         val shortest = RouteResult("shortest", distanceMeters = 100.0, safetyFacilityScore = 0.0)
-        val alternative = RouteResult("alternative", distanceMeters = 120.0, safetyFacilityScore = 0.0)
+        val alternative =
+            RouteResult("alternative", distanceMeters = 120.0, safetyFacilityScore = 0.0)
 
         val result = NavigationRepository.selectRoutes(listOf(alternative, shortest))
 

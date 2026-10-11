@@ -39,22 +39,31 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun searchPlaces(query: String, isOpen: Boolean, currentLocation: GeoPoint?) {
         placeSearchJob?.cancel()
         if (!isOpen || query.trim().length < 2) {
-            _uiState.update { it.copy(places = emptyList(), isPlaceSearchLoading = false, placeSearchError = null) }
+            _uiState.update {
+                it.copy(places = emptyList(), isPlaceSearchLoading = false, placeSearchError = null)
+            }
             return
         }
         placeSearchJob = viewModelScope.launch {
-            _uiState.update { it.copy(places = emptyList(), isPlaceSearchLoading = true, placeSearchError = null) }
+            _uiState.update {
+                it.copy(places = emptyList(), isPlaceSearchLoading = true, placeSearchError = null)
+            }
             delay(350)
             try {
                 val context = getApplication<Application>()
-                val result = KakaoPlaceRepository.search(
-                    restApiKey = context.getString(R.string.kakao_rest_api_key),
-                    query = query,
-                    centerLatitude = currentLocation?.latitude,
-                    centerLongitude = currentLocation?.longitude,
-                )
+                val result =
+                    KakaoPlaceRepository.search(
+                        restApiKey = context.getString(R.string.kakao_rest_api_key),
+                        query = query,
+                        centerLatitude = currentLocation?.latitude,
+                        centerLongitude = currentLocation?.longitude,
+                    )
                 _uiState.update {
-                    it.copy(places = result.places, isPlaceSearchLoading = false, placeSearchError = result.errorMessage)
+                    it.copy(
+                        places = result.places,
+                        isPlaceSearchLoading = false,
+                        placeSearchError = result.errorMessage,
+                    )
                 }
             } catch (exception: CancellationException) {
                 throw exception
@@ -70,30 +79,48 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun loadRoutes(origin: PlaceSelection, destination: PlaceSelection) {
         routeSearchJob?.cancel()
         if (!origin.hasCoordinates() || !destination.hasCoordinates()) {
-            _uiState.update { it.copy(routes = null, isRouteLoading = false, routeError = null, routeNotice = null) }
+            _uiState.update {
+                it.copy(
+                    routes = null,
+                    isRouteLoading = false,
+                    routeError = null,
+                    routeNotice = null,
+                )
+            }
             return
         }
         routeSearchJob = viewModelScope.launch {
-            _uiState.update { it.copy(routes = null, isRouteLoading = true, routeError = null, routeNotice = null) }
+            _uiState.update {
+                it.copy(routes = null, isRouteLoading = true, routeError = null, routeNotice = null)
+            }
             try {
                 val context = getApplication<Application>()
-                val result = NavigationRepository.fetchMultiRoutes(
-                    context = context,
-                    accessToken = context.getString(R.string.mapbox_access_token),
-                    originLat = origin.latitude!!,
-                    originLng = origin.longitude!!,
-                    destLat = destination.latitude!!,
-                    destLng = destination.longitude!!,
-                )
+                val result =
+                    NavigationRepository.fetchMultiRoutes(
+                        context = context,
+                        accessToken = context.getString(R.string.mapbox_access_token),
+                        originLat = origin.latitude!!,
+                        originLng = origin.longitude!!,
+                        destLat = destination.latitude!!,
+                        destLng = destination.longitude!!,
+                    )
                 _uiState.update {
-                    it.copy(routes = result, isRouteLoading = false, routeError = result.errorMessage, routeNotice = result.noticeMessage)
+                    it.copy(
+                        routes = result,
+                        isRouteLoading = false,
+                        routeError = result.errorMessage,
+                        routeNotice = result.noticeMessage,
+                    )
                 }
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
                 Log.e("HomeViewModel", "Route search failed", exception)
                 _uiState.update {
-                    it.copy(isRouteLoading = false, routeError = "경로 검색 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
+                    it.copy(
+                        isRouteLoading = false,
+                        routeError = "경로 검색 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+                    )
                 }
             }
         }

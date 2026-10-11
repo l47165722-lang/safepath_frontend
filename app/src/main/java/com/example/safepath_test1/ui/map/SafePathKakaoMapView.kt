@@ -9,17 +9,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.safepath_test1.location.SafetyRepository
 import com.example.safepath_test1.model.GeoPoint
 import com.kakao.vectormap.KakaoMap
@@ -37,10 +37,10 @@ import com.kakao.vectormap.route.RouteLineSegment
 import com.kakao.vectormap.route.RouteLineStyle
 import com.kakao.vectormap.route.RouteLineStyles
 import com.kakao.vectormap.route.RouteLineStylesSet
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import kotlin.math.roundToInt
 
 private val SeoulFallback = GeoPoint(37.5665, 126.9780)
 private const val MapTag = "SafePathKakaoMapView"
@@ -61,8 +61,11 @@ fun SafePathKakaoMapView(
     showSafetyFacilities: Boolean = true,
     destinationPoint: GeoPoint? = null,
     routeLineGeoJson: String? = null,
-    routeLineColor: String = "#2563EB",
+    routeLineColor: String = "#5FA8D3",
     onMapClick: ((GeoPoint) -> Unit)? = null,
+    alternativeRouteLines: List<Pair<String, String>> = emptyList(),
+    remainingRouteGeoJson: String? = null,
+    currentMarkerColor: String = "#5FA8D3",
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -87,6 +90,7 @@ fun SafePathKakaoMapView(
         mapView.start(
             object : MapLifeCycleCallback() {
                 override fun onMapDestroy() = Unit
+
                 override fun onMapError(error: Exception) {
                     Log.e(MapTag, "Kakao map failed to start", error)
                 }
@@ -123,23 +127,29 @@ fun SafePathKakaoMapView(
         val location = currentLocation ?: return@LaunchedEffect
         val shouldRecenter = !hasCentered || recenterToken != lastRecenterToken
         if (shouldRecenter) {
-            map.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(location.latitude, location.longitude), 16))
+            map.moveCamera(
+                CameraUpdateFactory.newCenterPosition(
+                    LatLng.from(location.latitude, location.longitude),
+                    16,
+                )
+            )
             hasCentered = true
             lastRecenterToken = recenterToken
         }
     }
 
-    LaunchedEffect(kakaoMap, currentLocation, hasLocationPermission) {
+    LaunchedEffect(kakaoMap, currentLocation, hasLocationPermission, currentMarkerColor) {
         val map = kakaoMap ?: return@LaunchedEffect
         val manager = map.labelManager ?: return@LaunchedEffect
-        val layer = manager.getLayer(LocationLayerId)
-            ?: manager.addLayer(LabelLayerOptions.from(LocationLayerId).setZOrder(7_000))
-            ?: return@LaunchedEffect
+        val layer =
+            manager.getLayer(LocationLayerId)
+                ?: manager.addLayer(LabelLayerOptions.from(LocationLayerId).setZOrder(7_000))
+                ?: return@LaunchedEffect
         layer.removeAll()
         if (hasLocationPermission && currentLocation != null) {
             layer.addLabel(
                 LabelOptions.from(LatLng.from(currentLocation.latitude, currentLocation.longitude))
-                    .setStyles(createDotBitmap(22, Color.parseColor("#2563EB"), 4)),
+                    .setStyles(createDotBitmap(22, Color.parseColor(currentMarkerColor), 4))
             )
         }
     }
@@ -147,27 +157,39 @@ fun SafePathKakaoMapView(
     LaunchedEffect(kakaoMap, destinationPoint) {
         val map = kakaoMap ?: return@LaunchedEffect
         val manager = map.labelManager ?: return@LaunchedEffect
-        val layer = manager.getLayer(DestinationLayerId)
-            ?: manager.addLayer(LabelLayerOptions.from(DestinationLayerId).setZOrder(8_000))
-            ?: return@LaunchedEffect
+        val layer =
+            manager.getLayer(DestinationLayerId)
+                ?: manager.addLayer(LabelLayerOptions.from(DestinationLayerId).setZOrder(8_000))
+                ?: return@LaunchedEffect
         layer.removeAll()
         destinationPoint?.let { point ->
             layer.addLabel(
                 LabelOptions.from(LatLng.from(point.latitude, point.longitude))
-                    .setStyles(createDotBitmap(26, Color.parseColor("#EF4444"), 5)),
+                    .setStyles(createDotBitmap(26, Color.parseColor("#1B4965"), 5))
             )
         }
     }
 
-    LaunchedEffect(kakaoMap, showSafetyFacilities, facilityLatitudeBucket, facilityLongitudeBucket) {
+    LaunchedEffect(
+        kakaoMap,
+        showSafetyFacilities,
+        facilityLatitudeBucket,
+        facilityLongitudeBucket,
+    ) {
         val map = kakaoMap ?: return@LaunchedEffect
         val manager = map.labelManager ?: return@LaunchedEffect
-        val cctvLayer = manager.getLodLayer(CctvLayerId)
-            ?: manager.addLodLayer(LabelLayerOptions.from(CctvLayerId).setLodRadius(55f).setZOrder(5_000))
-            ?: return@LaunchedEffect
-        val lightLayer = manager.getLodLayer(LightLayerId)
-            ?: manager.addLodLayer(LabelLayerOptions.from(LightLayerId).setLodRadius(45f).setZOrder(4_000))
-            ?: return@LaunchedEffect
+        val cctvLayer =
+            manager.getLodLayer(CctvLayerId)
+                ?: manager.addLodLayer(
+                    LabelLayerOptions.from(CctvLayerId).setLodRadius(55f).setZOrder(5_000)
+                )
+                ?: return@LaunchedEffect
+        val lightLayer =
+            manager.getLodLayer(LightLayerId)
+                ?: manager.addLodLayer(
+                    LabelLayerOptions.from(LightLayerId).setLodRadius(45f).setZOrder(4_000)
+                )
+                ?: return@LaunchedEffect
 
         if (!showSafetyFacilities) {
             cctvLayer.setVisible(false)
@@ -179,35 +201,105 @@ fun SafePathKakaoMapView(
         cctvLayer.removeAll()
         lightLayer.removeAll()
 
-        val cctvStyle = LabelStyles.from(LabelStyle.from(createDotBitmap(10, Color.parseColor("#2563EB"), 2)).setZoomLevel(14))
-        val lightStyle = LabelStyles.from(LabelStyle.from(createDotBitmap(7, Color.parseColor("#F59E0B"), 0)).setZoomLevel(14))
-        val (cctvOptions, lightOptions) = withContext(Dispatchers.Default) {
-            val center = if (facilityLatitudeBucket != null && facilityLongitudeBucket != null) {
-                GeoPoint(facilityLatitudeBucket / 100.0, facilityLongitudeBucket / 100.0)
-            } else {
-                SeoulFallback
+        val cctvStyle =
+            LabelStyles.from(LabelStyle.from(createFacilityBitmap(camera = true)).setZoomLevel(14))
+        val lightStyle =
+            LabelStyles.from(LabelStyle.from(createFacilityBitmap(camera = false)).setZoomLevel(14))
+        val (cctvOptions, lightOptions) =
+            withContext(Dispatchers.Default) {
+                val center =
+                    if (facilityLatitudeBucket != null && facilityLongitudeBucket != null) {
+                        GeoPoint(facilityLatitudeBucket / 100.0, facilityLongitudeBucket / 100.0)
+                    } else {
+                        SeoulFallback
+                    }
+                val cctvs =
+                    SafetyRepository.facilitiesNearPoint(
+                            SafetyRepository.getCctvFacilities(context),
+                            center.latitude,
+                            center.longitude,
+                            FacilityDisplayRadiusMeters,
+                            MaxCctvLabels,
+                        )
+                        .map { facility ->
+                            LabelOptions.from(LatLng.from(facility.latitude, facility.longitude))
+                                .setStyles(cctvStyle)
+                        }
+                val lights =
+                    SafetyRepository.facilitiesNearPoint(
+                            SafetyRepository.getStreetlightFacilities(context),
+                            center.latitude,
+                            center.longitude,
+                            FacilityDisplayRadiusMeters,
+                            MaxStreetlightLabels,
+                        )
+                        .map { facility ->
+                            LabelOptions.from(LatLng.from(facility.latitude, facility.longitude))
+                                .setStyles(lightStyle)
+                        }
+                cctvs to lights
             }
-            val cctvs = SafetyRepository.facilitiesNearPoint(
-                SafetyRepository.getCctvFacilities(context), center.latitude, center.longitude,
-                FacilityDisplayRadiusMeters, MaxCctvLabels,
-            ).map { facility ->
-                LabelOptions.from(LatLng.from(facility.latitude, facility.longitude)).setStyles(cctvStyle)
-            }
-            val lights = SafetyRepository.facilitiesNearPoint(
-                SafetyRepository.getStreetlightFacilities(context), center.latitude, center.longitude,
-                FacilityDisplayRadiusMeters, MaxStreetlightLabels,
-            ).map { facility ->
-                LabelOptions.from(LatLng.from(facility.latitude, facility.longitude)).setStyles(lightStyle)
-            }
-            cctvs to lights
-        }
         if (cctvOptions.isNotEmpty()) cctvLayer.addLodLabels(cctvOptions)
         if (lightOptions.isNotEmpty()) lightLayer.addLodLabels(lightOptions)
     }
 
-    LaunchedEffect(kakaoMap, routeLineGeoJson, routeLineColor) {
+    LaunchedEffect(
+        kakaoMap,
+        routeLineGeoJson,
+        routeLineColor,
+        alternativeRouteLines,
+        remainingRouteGeoJson,
+    ) {
         val layer = kakaoMap?.routeLineManager?.layer ?: return@LaunchedEffect
         layer.removeAll()
+        val remainingPoints = parseRoutePoints(remainingRouteGeoJson)
+        val dashedStyle =
+            RouteLineStylesSet.from(
+                RouteLineStyles.from(RouteLineStyle.from(5f, Color.parseColor("#5FA8D3")))
+            )
+        remainingPoints.zipWithNext().forEach { (start, end) ->
+            val distance = FloatArray(1)
+            android.location.Location.distanceBetween(
+                start.latitude,
+                start.longitude,
+                end.latitude,
+                end.longitude,
+                distance,
+            )
+            val steps = kotlin.math.ceil(distance[0] / 10.0).toInt().coerceIn(1, 500)
+            for (index in 0 until steps step 2) {
+                fun interpolate(fraction: Double) =
+                    LatLng.from(
+                        start.latitude + (end.latitude - start.latitude) * fraction,
+                        start.longitude + (end.longitude - start.longitude) * fraction,
+                    )
+                val dash =
+                    listOf(
+                        interpolate(index.toDouble() / steps),
+                        interpolate((index + 1).coerceAtMost(steps).toDouble() / steps),
+                    )
+                layer.addRouteLine(
+                    RouteLineOptions.from(RouteLineSegment.from(dash, dashedStyle.getStyles(0)))
+                        .setStylesSet(dashedStyle)
+                )
+            }
+        }
+        alternativeRouteLines.forEach { (geoJson, hexColor) ->
+            val alternativePoints = parseRoutePoints(geoJson)
+            if (alternativePoints.size >= 2) {
+                val alternativeStyle =
+                    RouteLineStyles.from(
+                        RouteLineStyle.from(5f, Color.parseColor(hexColor), 2f, Color.WHITE)
+                    )
+                val alternativeSet = RouteLineStylesSet.from(alternativeStyle)
+                layer.addRouteLine(
+                    RouteLineOptions.from(
+                            RouteLineSegment.from(alternativePoints, alternativeSet.getStyles(0))
+                        )
+                        .setStylesSet(alternativeSet)
+                )
+            }
+        }
         val points = parseRoutePoints(routeLineGeoJson)
         if (points.size < 2) return@LaunchedEffect
         val color = runCatching { Color.parseColor(routeLineColor) }.getOrDefault(Color.BLUE)
@@ -227,7 +319,8 @@ private fun parseRoutePoints(geoJson: String?): List<LatLng> {
                 val coordinate = coordinates.optJSONArray(index) ?: continue
                 val longitude = coordinate.optDouble(0, Double.NaN)
                 val latitude = coordinate.optDouble(1, Double.NaN)
-                if (latitude.isFinite() && longitude.isFinite()) add(LatLng.from(latitude, longitude))
+                if (latitude.isFinite() && longitude.isFinite())
+                    add(LatLng.from(latitude, longitude))
             }
         }
     } catch (exception: Exception) {
@@ -241,7 +334,12 @@ private fun createDotBitmap(size: Int, fillColor: Int, strokeWidth: Int): Bitmap
     val canvas = Canvas(bitmap)
     val center = size / 2f
     if (strokeWidth > 0) {
-        canvas.drawCircle(center, center, center, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
+        canvas.drawCircle(
+            center,
+            center,
+            center,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE },
+        )
     }
     canvas.drawCircle(
         center,
@@ -249,5 +347,36 @@ private fun createDotBitmap(size: Int, fillColor: Int, strokeWidth: Int): Bitmap
         center - strokeWidth,
         Paint(Paint.ANTI_ALIAS_FLAG).apply { color = fillColor },
     )
+    return bitmap
+}
+
+private fun createFacilityBitmap(camera: Boolean): Bitmap {
+    val bitmap = Bitmap.createBitmap(36, 36, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    val blue = Color.parseColor("#5FA8D3")
+    paint.color = Color.WHITE
+    canvas.drawCircle(18f, 18f, 16f, paint)
+    paint.color = blue
+    paint.style = Paint.Style.STROKE
+    paint.strokeWidth = 2f
+    canvas.drawCircle(18f, 18f, 15f, paint)
+    if (camera) {
+        canvas.drawRoundRect(9f, 12f, 22f, 24f, 2f, 2f, paint)
+        val lens =
+            android.graphics.Path().apply {
+                moveTo(22f, 16f)
+                lineTo(28f, 12f)
+                lineTo(28f, 24f)
+                lineTo(22f, 20f)
+                close()
+            }
+        canvas.drawPath(lens, paint)
+    } else {
+        canvas.drawLine(18f, 12f, 18f, 27f, paint)
+        canvas.drawLine(12f, 27f, 24f, 27f, paint)
+        canvas.drawArc(10f, 9f, 26f, 22f, 180f, 180f, false, paint)
+        canvas.drawLine(10f, 16f, 26f, 16f, paint)
+    }
     return bitmap
 }

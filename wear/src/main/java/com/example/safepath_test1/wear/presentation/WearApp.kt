@@ -39,17 +39,20 @@ internal fun isStatusStale(updatedAt: Long, now: Long = System.currentTimeMillis
 
 private sealed class RouteStatus {
     data object Idle : RouteStatus()
+
     data object Searching : RouteStatus()
-    data class Found(val routeType: String, val distanceKm: String, val destinationName: String?) : RouteStatus()
+
+    data class Found(val routeType: String, val distanceKm: String, val destinationName: String?) :
+        RouteStatus()
+
     data object Stale : RouteStatus()
 }
 
 /**
- * Experimental counterpart to WearApp.kt: syncs status over the Wearable
- * Data Layer's DataClient instead of Firebase. Uses DataClient (not
- * MessageClient) — see WearMessenger.kt on the phone side for why.
- * No pairing code screen here - Bluetooth pairing between this watch and
- * a phone already scopes who can push data to it.
+ * Experimental counterpart to WearApp.kt: syncs status over the Wearable Data Layer's DataClient
+ * instead of Firebase. Uses DataClient (not MessageClient) — see WearMessenger.kt on the phone side
+ * for why. No pairing code screen here - Bluetooth pairing between this watch and a phone already
+ * scopes who can push data to it.
  */
 @Composable
 fun WearApp() {
@@ -60,15 +63,17 @@ fun WearApp() {
     fun applyDataMap(dataMap: com.google.android.gms.wearable.DataMap) {
         val updatedAt = dataMap.getLong("updatedAt")
         lastReceivedAt = updatedAt
-        val receivedStatus = when (dataMap.getString("state")) {
-            "SEARCHING" -> RouteStatus.Searching
-            "FOUND" -> RouteStatus.Found(
-                routeType = dataMap.getString("routeType") ?: "경로",
-                distanceKm = "%.1f".format(dataMap.getDouble("distanceMeters") / 1000.0),
-                destinationName = dataMap.getString("destinationName"),
-            )
-            else -> RouteStatus.Idle
-        }
+        val receivedStatus =
+            when (dataMap.getString("state")) {
+                "SEARCHING" -> RouteStatus.Searching
+                "FOUND" ->
+                    RouteStatus.Found(
+                        routeType = dataMap.getString("routeType") ?: "경로",
+                        distanceKm = "%.1f".format(dataMap.getDouble("distanceMeters") / 1000.0),
+                        destinationName = dataMap.getString("destinationName"),
+                    )
+                else -> RouteStatus.Idle
+            }
         status = if (isStatusStale(updatedAt)) RouteStatus.Stale else receivedStatus
         Log.i(TAG, "New status=$status")
     }
@@ -77,7 +82,8 @@ fun WearApp() {
     // only delivers *future* changes, not the item as it stood before we
     // started listening).
     DisposableEffect(Unit) {
-        Wearable.getDataClient(context).dataItems
+        Wearable.getDataClient(context)
+            .dataItems
             .addOnSuccessListener { dataItems ->
                 for (i in 0 until dataItems.count) {
                     val item = dataItems[i]
@@ -88,7 +94,7 @@ fun WearApp() {
                 dataItems.release()
             }
             .addOnFailureListener { e -> Log.e(TAG, "Failed to read existing DataItems", e) }
-        onDispose { }
+        onDispose {}
     }
 
     DisposableEffect(Unit) {
@@ -96,7 +102,9 @@ fun WearApp() {
         val listener = DataClient.OnDataChangedListener { dataEvents ->
             for (event in dataEvents) {
                 Log.i(TAG, "DataEvent type=${event.type} path=${event.dataItem.uri.path}")
-                if (event.type == DataEvent.TYPE_CHANGED && event.dataItem.uri.path == PATH_STATUS) {
+                if (
+                    event.type == DataEvent.TYPE_CHANGED && event.dataItem.uri.path == PATH_STATUS
+                ) {
                     applyDataMap(DataMapItem.fromDataItem(event.dataItem).dataMap)
                 }
             }
@@ -113,9 +121,10 @@ fun WearApp() {
     LaunchedEffect(Unit) {
         while (true) {
             delay(30_000)
-            if (lastReceivedAt > 0 &&
-                System.currentTimeMillis() - lastReceivedAt > STALE_AFTER_MS &&
-                status !is RouteStatus.Stale
+            if (
+                lastReceivedAt > 0 &&
+                    System.currentTimeMillis() - lastReceivedAt > STALE_AFTER_MS &&
+                    status !is RouteStatus.Stale
             ) {
                 status = RouteStatus.Stale
             }
@@ -145,7 +154,11 @@ fun WearApp() {
                         Text(text = "✅ ${current.routeType}", textAlign = TextAlign.Center)
                         Text(text = "${current.distanceKm} km", textAlign = TextAlign.Center)
                         current.destinationName?.let {
-                            Text(text = it, textAlign = TextAlign.Center, style = MaterialTheme.typography.caption2)
+                            Text(
+                                text = it,
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.caption2,
+                            )
                         }
                     }
                     RouteStatus.Stale -> {

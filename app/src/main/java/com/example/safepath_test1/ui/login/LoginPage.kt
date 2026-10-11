@@ -1,224 +1,171 @@
 package com.example.safepath_test1.ui.login
 
-import android.util.Log
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.safepath_test1.auth.GoogleAuthManager
-import com.example.safepath_test1.ui.theme.AppBorder
-import com.example.safepath_test1.ui.theme.SafeBlue
-import com.example.safepath_test1.ui.theme.TextMain
-import com.example.safepath_test1.ui.theme.TextMuted
+import com.example.safepath_test1.ui.theme.*
 import kotlinx.coroutines.launch
 
 @Composable
-fun LoginPage(
-    onLoginSuccess: () -> Unit,
-    onDemoLogin: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+fun LoginPage(onLoginSuccess: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var isSigningIn by remember { mutableStateOf(false) }
-    val googleAuthManager = remember {
-        GoogleAuthManager(context)
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.White)
-            .statusBarsPadding()
-            .imePadding()
-            .padding(horizontal = 30.dp, vertical = 32.dp),
-        contentAlignment = Alignment.Center,
+    val auth = remember { GoogleAuthManager(context) }
+    var busy by remember { mutableStateOf(false) }
+    Column(
+        modifier.fillMaxSize().background(Color.White).systemBarsPadding().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Spacer(Modifier.weight(1f))
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = FieldBg,
+            modifier = Modifier.size(112.dp),
         ) {
-            Surface(
-                modifier = Modifier.size(54.dp),
-                shape = RoundedCornerShape(17.dp),
-                color = SafeBlue
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Shield,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(28.dp))
-
-            Text(
-                text = "SafePath에 로그인",
-                color = TextMain,
-                style = MaterialTheme.typography.headlineLarge
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "대성이 일해라",
-                color = TextMuted,
-                fontSize = 14.sp
-            )
-
-            Spacer(modifier = Modifier.height(36.dp))
-
-            ProviderButton(
-                provider = if (isSigningIn) "로그인 중…" else "Google",
-                enabled = !isSigningIn,
-                icon = {
-                    Text(
-                        text = "G",
-                        color = SafeBlue,
-                        fontWeight = FontWeight.ExtraBold,
-
-                        fontSize = 20.sp
-                    )
-                },
-                onClick = {
-                    scope.launch {
-                        isSigningIn = true
-                        val result = googleAuthManager.signInWithGoogle()
-
-                        if (result.isSuccess) {
-                            Log.d("GoogleLogin", "Google 로그인 성공")
-                            onLoginSuccess()
-                        } else {
-                            val exception = result.exceptionOrNull()
-                            Log.e(
-                                "GoogleLogin",
-                                "Google 로그인 실패",
-                                exception
-                            )
-                            Toast.makeText(
-                                context,
-                                "Google 로그인 실패: ${exception?.localizedMessage ?: "알 수 없는 오류"}",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                        isSigningIn = false
-                    }
-                }
-            )
-
-            Spacer(modifier = Modifier.height(28.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                HorizontalDivider(
-                    modifier = Modifier.weight(1f),
-                    color = AppBorder
-                )
-                Text(
-                    text = "  or  ",
-                    color = TextMuted,
-                    fontSize = 12.sp
-                )
-                HorizontalDivider(
-                    modifier = Modifier.weight(1f),
-                    color = AppBorder
-                )
-            }
-
-            Spacer(modifier = Modifier.height(22.dp))
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .clickable(onClick = onDemoLogin),
-                shape = RoundedCornerShape(14.dp),
-                color = SafeBlue.copy(alpha = 0.09f),
-                border = BorderStroke(1.dp, SafeBlue.copy(alpha = 0.22f)),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "일단 시작",
-                        color = SafeBlue,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
-                }
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Shield, null, tint = SafeBlue, modifier = Modifier.size(64.dp))
             }
         }
+        Spacer(Modifier.height(24.dp))
+        Text("Safe Path", style = MaterialTheme.typography.headlineLarge, color = SafeBlue)
+        Spacer(Modifier.height(8.dp))
+        Text("밤길, 혼자 걷지 않도록", color = TextMuted)
+        Spacer(Modifier.weight(1f))
+        OutlinedButton(
+            shape = MaterialTheme.shapes.small,
+            onClick = {
+                scope.launch {
+                    busy = true
+                    val result = auth.signInWithGoogle()
+                    busy = false
+                    if (result.isSuccess) onLoginSuccess()
+                    else
+                        Toast.makeText(
+                                context,
+                                "Google 로그인에 실패했습니다. 다시 시도해 주세요.",
+                                Toast.LENGTH_LONG,
+                            )
+                            .show()
+                }
+            },
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+        ) {
+            Text("G", color = SkyBlue, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(12.dp))
+            Text(if (busy) "로그인 중…" else "Google로 계속하기", color = TextMain)
+        }
+        Text(
+            "계속하면 Safe Path의 이용약관 · 개인정보처리방침에\n동의하는 것으로 간주돼요.",
+            color = TextMuted,
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 16.dp, bottom = 20.dp),
+        )
     }
 }
 
 @Composable
-private fun ProviderButton(
-    provider: String,
-    enabled: Boolean = true,
-    icon: @Composable () -> Unit,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .clickable(enabled = enabled, onClick = onClick),
-        shape = RoundedCornerShape(15.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, AppBorder),
+fun SignupScreen(onComplete: () -> Unit, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+    val prefs = remember {
+        context.getSharedPreferences("safe_path_profile", android.content.Context.MODE_PRIVATE)
+    }
+    var name by rememberSaveable { mutableStateOf(user?.displayName.orEmpty()) }
+    var phone by rememberSaveable { mutableStateOf("") }
+    var submitted by rememberSaveable { mutableStateOf(false) }
+    val phoneValid = phone.filter(Char::isDigit).length in 10..11
+    BackHandler(onBack = onBack)
+    Column(
+        Modifier.fillMaxSize()
+            .background(Color.White)
+            .systemBarsPadding()
+            .imePadding()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Box(
-                modifier = Modifier.size(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                icon()
-            }
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = if (provider == "로그인 중…") provider else "${provider}로 계속하기",
-                color = TextMain,
-                fontWeight = FontWeight.SemiBold
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
+            Text("처음 오셨네요", style = MaterialTheme.typography.headlineLarge)
+            Text("보호자가 알아볼 수 있도록 이름과 전화번호를 알려 주세요.", color = TextMuted)
+            OutlinedTextField(
+                name,
+                { name = it },
+                label = { Text("이름") },
+                singleLine = true,
+                isError = submitted && name.isBlank(),
+                supportingText = { if (submitted && name.isBlank()) Text("이름을 입력해 주세요.") },
+                modifier = Modifier.fillMaxWidth(),
             )
+            OutlinedTextField(
+                phone,
+                { phone = it },
+                label = { Text("전화번호") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                isError = submitted && !phoneValid,
+                supportingText = { if (submitted && !phoneValid) Text("올바른 전화번호를 입력해 주세요.") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text("이런 권한이 필요해요", fontWeight = FontWeight.Bold)
+            listOf(
+                    "위치" to "귀가 중 보호자와 실시간 위치를 공유해요",
+                    "마이크" to "위험 음성과 소리를 감지할 때 사용해요",
+                    "알림" to "내가 지키는 사람의 위험 알림을 받아요",
+                )
+                .forEach { (title, body) ->
+                    Surface(color = FieldBg, shape = MaterialTheme.shapes.medium) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                            Text(title, fontWeight = FontWeight.Bold)
+                            Text(
+                                body,
+                                color = TextMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                }
+        }
+        Button(
+            shape = MaterialTheme.shapes.small,
+            onClick = {
+                submitted = true
+                if (name.isNotBlank() && phoneValid) {
+                    prefs
+                        .edit()
+                        .putString("user_name", name.trim())
+                        .putString("user_phone", phone.trim())
+                        .putString("onboarded_uid", user?.uid)
+                        .apply()
+                    onComplete()
+                }
+            },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+        ) {
+            Text("시작하기")
         }
     }
 }

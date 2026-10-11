@@ -1,72 +1,55 @@
 package com.example.safepath_test1.ui.guardian
 
-import android.widget.Toast
-import android.util.Log
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import android.content.Context
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.safepath_test1.model.GeoPoint
-import com.example.safepath_test1.location.shareLocation
+import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.safepath_test1.friends.CreatedFriendInvite
+import com.example.safepath_test1.friends.FriendsViewModel
+import com.example.safepath_test1.friends.readServerFriends
 import com.example.safepath_test1.ui.components.PageHeader
-import com.example.safepath_test1.ui.theme.AppBorder
-import com.example.safepath_test1.ui.theme.DangerRed
-import com.example.safepath_test1.ui.theme.FieldBg
-import com.example.safepath_test1.ui.theme.SafeBlue
-import com.example.safepath_test1.ui.theme.TextMain
-import com.example.safepath_test1.ui.theme.TextMuted
+import com.example.safepath_test1.ui.theme.*
+import kotlinx.coroutines.delay
 import org.json.JSONArray
-import org.json.JSONObject
+
+// Existing local contacts are retained; these are not server-accepted friendships.
+data class FriendshipRequest(
+    val id: String,
+    val name: String,
+    val deliveryStatus: String = "submitted",
+)
 
 data class GuardianItem(
     val id: String,
@@ -75,566 +58,656 @@ data class GuardianItem(
     val phone: String,
 )
 
+private fun readLocalGuardians(context: Context): List<GuardianItem> = runCatching {
+    val data =
+        JSONArray(
+            context
+                .getSharedPreferences("safe_path_guardians", Context.MODE_PRIVATE)
+                .getString("guardian_list", "[]")
+        )
+    (0 until data.length()).map { i ->
+        data.getJSONObject(i).let {
+            GuardianItem(
+                it.optString("id"),
+                it.optString("name"),
+                it.optString("relationship"),
+                it.optString("phone"),
+            )
+        }
+    }
+}
+    .getOrDefault(emptyList())
+
+fun readGuardians(context: Context): List<GuardianItem> =
+    (readLocalGuardians(context) + readServerFriends(context)).distinctBy { it.id }
+
+private fun maskedPhone(phone: String): String {
+    val digits = phone.filter(Char::isDigit)
+    return if (digits.length >= 8) "${digits.take(3)}-****-${digits.takeLast(4)}" else "연락처 미등록"
+}
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun GuardianScreen(
-    currentLocation: GeoPoint?,
+fun FriendsScreen(
     modifier: Modifier = Modifier,
+    receivedRequests: List<FriendshipRequest> = emptyList(),
+    sentRequests: List<FriendshipRequest> = emptyList(),
+    onAccept: ((String) -> Unit)? = null,
+    onReject: ((String) -> Unit)? = null,
+    onCancel: ((String) -> Unit)? = null,
+    onInviteCreated: (CreatedFriendInvite) -> Unit = {},
 ) {
     val context = LocalContext.current
-    val prefs = remember(context) {
-        context.getSharedPreferences("safe_path_guardians", android.content.Context.MODE_PRIVATE)
-    }
-    var showAddDialog by remember { mutableStateOf(false) }
-
-    val guardians = remember {
-        val list = mutableStateListOf<GuardianItem>()
-        try {
-            val jsonString = prefs.getString("guardian_list", "[]") ?: "[]"
-            val array = JSONArray(jsonString)
-            for (i in 0 until array.length()) {
-                val obj = array.getJSONObject(i)
-                list.add(
-                    GuardianItem(
-                        id = obj.optString("id", ""),
-                        name = obj.optString("name", ""),
-                        relationship = obj.optString("relationship", ""),
-                        phone = obj.optString("phone", ""),
-                    )
-                )
+    val keyboard = LocalSoftwareKeyboardController.current
+    var guardians by remember { mutableStateOf(readLocalGuardians(context)) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var appliedQuery by rememberSaveable { mutableStateOf("") }
+    var showNotifications by rememberSaveable { mutableStateOf(false) }
+    var showAddFriend by rememberSaveable { mutableStateOf(false) }
+    val friendsViewModel: FriendsViewModel = viewModel()
+    val friendState by friendsViewModel.uiState.collectAsStateWithLifecycle()
+    val displayedGuardians = (guardians + friendState.friends).distinctBy { it.id }
+    val displayedReceived =
+        if (friendsViewModel.isConfigured) friendState.received else receivedRequests
+    val displayedSent = if (friendsViewModel.isConfigured) friendState.sent else sentRequests
+    val acceptAction: ((String) -> Unit)? =
+        if (friendsViewModel.isConfigured) ({ friendsViewModel.respond(it, "accept") })
+        else onAccept
+    val rejectAction: ((String) -> Unit)? =
+        if (friendsViewModel.isConfigured) ({ friendsViewModel.respond(it, "reject") })
+        else onReject
+    val cancelAction: ((String) -> Unit)? =
+        if (friendsViewModel.isConfigured) ({ friendsViewModel.respond(it, "cancel") })
+        else onCancel
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner, showAddFriend) {
+        if (showAddFriend) return@LaunchedEffect
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                friendsViewModel.refresh()
+                delay(15_000)
             }
-        } catch (e: org.json.JSONException) {
-            // Saved data is corrupted (e.g. hand-edited or from an older app
-            // version) — start from an empty list instead of crashing.
-            android.util.Log.e("GuardianScreen", "Failed to parse saved guardian list, resetting", e)
         }
-        list
     }
-
-    fun saveGuardians() {
-        val array = JSONArray()
-        guardians.forEach { g ->
-            val obj = JSONObject()
-            obj.put("id", g.id)
-            obj.put("name", g.name)
-            obj.put("relationship", g.relationship)
-            obj.put("phone", g.phone)
-            array.put(obj)
+    LaunchedEffect(friendState.invite) {
+        friendState.invite?.let {
+            showAddFriend = false
+            onInviteCreated(it)
+            friendsViewModel.consumeInvite()
         }
-        prefs.edit().putString("guardian_list", array.toString()).apply()
     }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        PageHeader("보호자", "안심 보호자를 등록하고 관리하세요 (최대 9명)")
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text("현재 위치 공유", fontWeight = FontWeight.Bold, color = TextMain)
-                Text(
-                    if (currentLocation == null) "위치를 확인하는 중입니다." else "공유할 앱과 보호자를 직접 선택할 수 있습니다.",
-                    color = TextMuted,
-                    fontSize = 12.sp,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        enabled = currentLocation != null,
-                        onClick = { shareLocation(context, currentLocation, isEmergency = false) },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                    ) { Text("위치 공유") }
-                    Button(
-                        enabled = currentLocation != null,
-                        onClick = { shareLocation(context, currentLocation, isEmergency = true) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = DangerRed),
-                        shape = RoundedCornerShape(12.dp),
-                    ) { Text("긴급 공유") }
+    var disconnect by remember { mutableStateOf<GuardianItem?>(null) }
+    val matches =
+        remember(displayedGuardians, appliedQuery) {
+            val text = appliedQuery.trim()
+            val digits = text.filter(Char::isDigit)
+            displayedGuardians
+                .filter { friend ->
+                    text.isBlank() ||
+                        friend.name.contains(text, ignoreCase = true) ||
+                        friend.relationship.contains(text, ignoreCase = true) ||
+                        friend.phone.contains(text, ignoreCase = true) ||
+                        (digits.isNotEmpty() &&
+                            text.all { it.isDigit() || it in " -+()" } &&
+                            friend.phone.filter(Char::isDigit).contains(digits))
                 }
-            }
+                .sortedBy { it.name }
         }
-
-        // Top Row: Status & Add Guardian Button
+    val search: () -> Unit = {
+        appliedQuery = query.trim()
+        keyboard?.hide()
+    }
+    Column(
+        modifier
+            .fillMaxSize()
+            .background(Color.White)
+            .statusBarsPadding()
+            .imePadding()
+            .padding(horizontal = 20.dp)
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "등록된 보호자 (${guardians.size}/9)",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextMain,
+                "친구",
+                style = MaterialTheme.typography.headlineLarge,
+                modifier = Modifier.weight(1f),
             )
-
-            Button(
+            IconButton(
                 onClick = {
-                    if (guardians.size >= 9) {
-                        Toast.makeText(context, "보호자는 최대 9명까지 등록할 수 있습니다.", Toast.LENGTH_SHORT).show()
-                    } else {
-                        showAddDialog = true
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = SafeBlue),
-                shape = RoundedCornerShape(12.dp),
+                    keyboard?.hide()
+                    friendsViewModel.clearError()
+                    showAddFriend = true
+                }
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                Icon(Icons.Default.PersonAdd, "친구 추가", tint = TextMain)
+            }
+            IconButton(
+                onClick = {
+                    keyboard?.hide()
+                    showNotifications = true
+                    friendsViewModel.refresh()
+                }
+            ) {
+                BadgedBox(
+                    badge = {
+                        val count = displayedReceived.size + displayedSent.size
+                        if (count > 0) Badge { Text(if (count > 99) "99+" else count.toString()) }
+                    }
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = "보호자 추가", tint = Color.White, modifier = Modifier.size(16.dp))
-                    Text("보호자 추가", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.NotificationsNone, "친구 요청 알림", tint = TextMain)
                 }
             }
         }
-
-        // 3-Column Grid for Guardians
-        if (guardians.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 40.dp, bottom = 40.dp),
-                contentAlignment = Alignment.Center,
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = {
+                    query = it
+                    if (it.isBlank()) appliedQuery = ""
+                },
+                placeholder = { Text("이름 또는 전화번호", style = MaterialTheme.typography.bodyMedium) },
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = TextMuted) },
+                trailingIcon =
+                    if (query.isNotEmpty())
+                        ({
+                            IconButton(
+                                onClick = {
+                                    query = ""
+                                    appliedQuery = ""
+                                }
+                            ) {
+                                Icon(Icons.Default.Close, "검색 지우기")
+                            }
+                        })
+                    else null,
+                shape = RoundedCornerShape(14.dp),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { search() }),
+                modifier = Modifier.weight(1f),
+            )
+            Button(
+                onClick = search,
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.height(56.dp),
             ) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Person,
-                            contentDescription = null,
-                            tint = SafeBlue,
-                            modifier = Modifier.size(44.dp),
-                        )
-                        Text(
-                            text = "등록된 보호자가 없습니다.",
-                            fontWeight = FontWeight.Bold,
-                            color = TextMain,
-                            fontSize = 16.sp,
-                            textAlign = TextAlign.Center,
-                        )
-                        Text(
-                            text = "상단 '보호자 추가' 버튼을 눌러 보호자를 등록해 주세요.",
-                            color = TextMuted,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                }
+                Text("검색")
             }
-        } else {
-            val rows = guardians.chunked(3)
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                rows.forEach { rowItems ->
+        }
+        HorizontalDivider(Modifier.padding(top = 20.dp, bottom = 12.dp), color = AppBorder)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (appliedQuery.isBlank()) "친구 ${displayedGuardians.size}"
+                else "검색 결과 ${matches.size}",
+                color = TextMuted,
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Text("길게 눌러 연결 해제", color = TextMuted, style = MaterialTheme.typography.labelSmall)
+        }
+        if (!showAddFriend && friendState.error != null) {
+            Text(
+                friendState.error.orEmpty(),
+                color = DangerRed,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+        }
+        if (matches.isEmpty()) {
+            Column(
+                Modifier.weight(1f).fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Icon(
+                    Icons.Default.PeopleOutline,
+                    null,
+                    tint = AppBorder,
+                    modifier = Modifier.size(56.dp),
+                )
+                Text(
+                    if (appliedQuery.isBlank()) "등록된 친구가 없어요" else "검색 결과가 없어요",
+                    color = TextMuted,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
+        } else
+            LazyColumn(
+                Modifier.weight(1f),
+                contentPadding = PaddingValues(top = 12.dp, bottom = 16.dp),
+            ) {
+                items(matches, key = { it.id }) { friend ->
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        Modifier.fillMaxWidth()
+                            .combinedClickable(onClick = {}, onLongClick = { disconnect = friend })
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        for (guardian in rowItems) {
-                            GuardianCard(
-                                guardian = guardian,
-                                onDelete = {
-                                    guardians.remove(guardian)
-                                    saveGuardians()
-                                    Toast.makeText(context, "${guardian.name} 보호자가 삭제되었습니다.", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.weight(1f),
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = SkyBlue.copy(alpha = .12f),
+                            modifier = Modifier.size(52.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    friend.name.take(1),
+                                    color = SafeBlue,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 20.sp,
+                                )
+                            }
+                        }
+                        Column(
+                            Modifier.weight(1f).padding(start = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                friend.name,
+                                color = TextMain,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 16.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                listOf(friend.relationship, maskedPhone(friend.phone))
+                                    .filter { it.isNotBlank() }
+                                    .joinToString(" · "),
+                                color = TextMuted,
+                                style = MaterialTheme.typography.bodySmall,
                             )
                         }
-                        repeat(3 - rowItems.size) {
-                            Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+    }
+    if (showAddFriend)
+        AddFriendDialog(
+            friendState.isSubmitting,
+            friendState.error,
+            onDismiss = {
+                showAddFriend = false
+                friendsViewModel.clearError()
+            },
+            onSubmit = friendsViewModel::create,
+        )
+    if (showNotifications)
+        Dialog(
+            onDismissRequest = { showNotifications = false },
+            properties =
+                DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+        ) {
+            Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
+                Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .padding(start = 8.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = { showNotifications = false }) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                "친구 목록으로 돌아가기",
+                                tint = TextMain,
+                            )
+                        }
+                        Text(
+                            "친구 알림",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                    HorizontalDivider(color = AppBorder)
+                    Column(
+                        Modifier.weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 20.dp, vertical = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        if (friendState.isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        friendState.error?.let { Text(it, color = DangerRed) }
+                        if (
+                            displayedReceived.isEmpty() &&
+                                displayedSent.isEmpty() &&
+                                !friendState.isLoading
+                        ) {
+                            Text(
+                                "받거나 보낸 친구 요청이 없어요",
+                                color = TextMuted,
+                                modifier = Modifier.padding(vertical = 28.dp),
+                            )
+                        }
+                        displayedReceived.forEach { request ->
+                            FriendNotificationRow(request.name, "받은 요청", "보호자 등록을 요청했어요") {
+                                OutlinedButton(
+                                    onClick = { rejectAction?.invoke(request.id) },
+                                    enabled = rejectAction != null && !friendState.isSubmitting,
+                                    shape = RoundedCornerShape(12.dp),
+                                ) {
+                                    Text("거절")
+                                }
+                                Button(
+                                    onClick = { acceptAction?.invoke(request.id) },
+                                    enabled = acceptAction != null && !friendState.isSubmitting,
+                                    shape = RoundedCornerShape(12.dp),
+                                ) {
+                                    Text("수락")
+                                }
+                            }
+                        }
+                        displayedSent.forEach { request ->
+                            FriendNotificationRow(
+                                request.name,
+                                "보낸 요청",
+                                when (request.deliveryStatus) {
+                                    "ready" -> "카카오톡 공유용 요청 · 수락 대기 중이에요"
+                                    "submitted" -> "친구 요청 · 수락 대기 중이에요"
+                                    else -> "친구 요청 상태를 확인해 주세요"
+                                },
+                            ) {
+                                TextButton(
+                                    onClick = { cancelAction?.invoke(request.id) },
+                                    enabled = cancelAction != null && !friendState.isSubmitting,
+                                ) {
+                                    Text("요청 취소")
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-    }
-
-    if (showAddDialog) {
-        AddGuardianDialog(
-            onDismiss = { showAddDialog = false },
-            onAdd = { name, relationship, phone ->
-                val newGuardian = GuardianItem(
-                    id = System.currentTimeMillis().toString(),
-                    name = name,
-                    relationship = relationship,
-                    phone = phone,
-                )
-                guardians.add(newGuardian)
-                saveGuardians()
-                showAddDialog = false
-                Toast.makeText(context, "${name} 보호자가 추가되었습니다.", Toast.LENGTH_SHORT).show()
+    disconnect?.let { target ->
+        AlertDialog(
+            onDismissRequest = { disconnect = null },
+            title = { Text("연결을 해제할까요?") },
+            text = { Text("${target.name} 연락처를 기기 목록에서 제거합니다.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (friendState.friends.any { it.id == target.id }) {
+                            friendsViewModel.respond(target.id, "disconnect")
+                            disconnect = null
+                            return@TextButton
+                        }
+                        guardians = guardians.filterNot { it.id == target.id }
+                        val array = JSONArray()
+                        guardians.forEach { g ->
+                            array.put(
+                                org.json
+                                    .JSONObject()
+                                    .put("id", g.id)
+                                    .put("name", g.name)
+                                    .put("relationship", g.relationship)
+                                    .put("phone", g.phone)
+                            )
+                        }
+                        context
+                            .getSharedPreferences("safe_path_guardians", Context.MODE_PRIVATE)
+                            .edit()
+                            .putString("guardian_list", array.toString())
+                            .apply()
+                        disconnect = null
+                    }
+                ) {
+                    Text("해제")
+                }
             },
+            dismissButton = { TextButton(onClick = { disconnect = null }) { Text("취소") } },
         )
     }
 }
 
 @Composable
-private fun GuardianCard(
-    guardian: GuardianItem,
-    onDelete: () -> Unit,
-    modifier: Modifier = Modifier,
+private fun FriendNotificationRow(
+    name: String,
+    type: String,
+    message: String,
+    actions: @Composable RowScope.() -> Unit,
 ) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box(modifier = Modifier.fillMaxWidth().padding(10.dp)) {
-            // Delete Button (Top-Right "✕")
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Surface(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .size(22.dp)
-                    .clickable(onClick = onDelete),
-                shape = CircleShape,
-                color = DangerRed.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(16.dp),
+                color = FieldBg,
+                modifier = Modifier.size(44.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Close, contentDescription = "삭제", tint = DangerRed, modifier = Modifier.size(12.dp))
+                    Icon(Icons.Default.PersonAdd, null, tint = SafeBlue)
                 }
             }
-
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                Modifier.weight(1f).padding(start = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(SafeBlue.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Filled.Person, contentDescription = null, tint = SafeBlue, modifier = Modifier.size(22.dp))
-                }
-
-                Text(
-                    text = guardian.name,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextMain,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = FieldBg,
-                ) {
-                    Text(
-                        text = guardian.relationship,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        fontSize = 10.sp,
-                        color = TextMuted,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-
-                Text(
-                    text = guardian.phone,
-                    fontSize = 10.sp,
-                    color = TextMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Text(type, color = SafeBlue, style = MaterialTheme.typography.labelSmall)
+                Text(name, fontWeight = FontWeight.SemiBold)
+                Text(message, color = TextMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
+        Row(
+            Modifier.align(Alignment.End),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            content = actions,
+        )
+        HorizontalDivider(color = AppBorder)
     }
 }
 
 @Composable
-private fun AddGuardianDialog(
-    onDismiss: () -> Unit,
-    onAdd: (name: String, relationship: String, phone: String) -> Unit,
-) {
-    var name by remember { mutableStateOf("") }
-    var relationship by remember { mutableStateOf("") }
-    var rawPhone by remember { mutableStateOf("") }
-    var errorMessage by remember { mutableStateOf("") }
+private fun EmptyPanel(message: String) {
+    Surface(
+        color = FieldBg,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            message,
+            color = TextMuted,
+            modifier = Modifier.padding(20.dp),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
 
-    val presetRelationships = listOf("부모님", "배우자", "자녀", "친구")
-
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .shadow(8.dp, RoundedCornerShape(20.dp)),
-            shape = RoundedCornerShape(20.dp),
-            color = Color.White,
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+@Composable
+fun GuardianScreen(modifier: Modifier = Modifier, journeys: List<ProtectedJourney> = emptyList()) {
+    var selectedIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    val selectedJourney = selectedIndex?.let { journeys.getOrNull(it) }
+    if (selectedJourney != null) {
+        BackHandler { selectedIndex = null }
+        ProtectedJourneyScreen(
+            selectedJourney,
+            onBack = { selectedIndex = null },
+            modifier = modifier,
+        )
+        return
+    }
+    Column(
+        modifier.fillMaxSize().background(Color.White).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+    ) {
+        PageHeader("보호 중", "나를 보호자로 선택한 사람의 귀가를 확인해요")
+        journeys.forEachIndexed { index, journey ->
+            OutlinedButton(
+                shape = MaterialTheme.shapes.small,
+                onClick = { selectedIndex = index },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
             ) {
-                // Header with Icon & Close Button
+                Text("${journey.userName} · ${journey.status}")
+            }
+        }
+        if (journeys.isEmpty())
+            Surface(
+                color = FieldBg,
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(
+                    Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Icon(
+                        Icons.Default.Shield,
+                        null,
+                        tint = SkyBlue,
+                        modifier = Modifier.size(48.dp),
+                    )
+                    Text("현재 보호 중인 귀가가 없어요", fontWeight = FontWeight.Bold)
+                    Text("보호 세션이 연결되면 사용자 위치와 상태를 여기에 표시합니다.", color = TextMuted)
+                }
+            }
+    }
+}
+
+@Composable
+fun DepartureScreen(
+    destination: String,
+    routeTitle: String,
+    distance: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val guardians = remember { readGuardians(context) }
+    var selected by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var pin by rememberSaveable { mutableStateOf("") }
+    var notice by remember { mutableStateOf(false) }
+    BackHandler(onBack = onBack)
+    Column(
+        modifier
+            .fillMaxSize()
+            .background(Color.White)
+            .statusBarsPadding()
+            .imePadding()
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
+                Text("출발 준비", style = MaterialTheme.typography.titleLarge)
+            }
+            Surface(color = FieldBg, shape = MaterialTheme.shapes.medium) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text(destination, fontWeight = FontWeight.Bold)
+                    Text("$routeTitle · $distance", color = TextMuted)
+                    Text(
+                        "시간 · 안전점수: 데이터 미제공",
+                        color = TextMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("함께 지켜줄 보호자", fontWeight = FontWeight.Bold)
+                Text("${selected.size}명 선택됨", color = SafeBlue)
+            }
+            if (guardians.isEmpty()) EmptyPanel("친구 탭에서 보호자 연결을 먼저 확인해 주세요.")
+            guardians.forEach { friend ->
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable {
+                        selected =
+                            if (friend.id in selected) selected - friend.id
+                            else selected + friend.id
+                    },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(38.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = SafeBlue.copy(alpha = 0.12f),
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Filled.Person, contentDescription = null, tint = SafeBlue, modifier = Modifier.size(20.dp))
-                            }
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = "새 보호자 추가",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextMain,
-                            )
-                            Text(
-                                text = "비상 시 소식을 받을 보호자 정보",
-                                fontSize = 11.sp,
-                                color = TextMuted,
-                            )
-                        }
-                    }
-
-                    Surface(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clickable(onClick = onDismiss),
-                        shape = CircleShape,
-                        color = FieldBg,
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Filled.Close, contentDescription = "닫기", tint = TextMuted, modifier = Modifier.size(14.dp))
-                        }
-                    }
-                }
-
-                HorizontalDivider(color = AppBorder)
-
-                // Input Card 1: 이름
-                InputCard(
-                    icon = Icons.Filled.Person,
-                    label = "이름",
-                    value = name,
-                    placeholder = "보호자 이름",
-                    onValueChange = { name = it },
-                )
-
-                // Input Card 2: 관계 + Quick Chips
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    InputCard(
-                        icon = Icons.Filled.Info,
-                        label = "관계",
-                        value = relationship,
-                        placeholder = "부모님, 친구, 배우자 등",
-                        onValueChange = { relationship = it },
+                    Icon(
+                        Icons.Default.Person,
+                        null,
+                        tint = SkyBlue,
+                        modifier = Modifier.padding(end = 12.dp),
                     )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        presetRelationships.forEach { preset ->
-                            val isSelected = relationship == preset
-                            Surface(
-                                modifier = Modifier.clickable { relationship = preset },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) SafeBlue.copy(alpha = 0.15f) else FieldBg,
-                                border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, SafeBlue) else null,
-                            ) {
-                                Text(
-                                    text = preset,
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (isSelected) SafeBlue else TextMuted,
-                                )
-                            }
-                        }
+                    Column(Modifier.weight(1f)) {
+                        Text(friend.name, fontWeight = FontWeight.Bold)
+                        Text(friend.relationship, color = TextMuted)
                     }
-                }
-
-                // Input Card 3: 전화번호
-                InputCard(
-                    icon = Icons.Filled.Call,
-                    label = "전화번호",
-                    value = rawPhone,
-                    placeholder = "010-0000-0000",
-                    isPhoneField = true,
-                    onValueChange = { rawPhone = it },
-                )
-
-                if (errorMessage.isNotEmpty()) {
-                    Text(
-                        text = errorMessage,
-                        color = DangerRed,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-
-                // Primary Action Button
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(46.dp)
-                        .clickable {
-                            if (name.isBlank() || relationship.isBlank() || rawPhone.isBlank()) {
-                                errorMessage = "모든 정보를 올바르게 입력해 주세요."
-                            } else {
-                                onAdd(name.trim(), relationship.trim(), rawPhone.trim())
-                            }
+                    Checkbox(
+                        friend.id in selected,
+                        onCheckedChange = { checked ->
+                            selected = if (checked) selected + friend.id else selected - friend.id
                         },
-                    shape = RoundedCornerShape(12.dp),
-                    color = SafeBlue,
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "보호자 등록하기",
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
+                    )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun InputCard(
-    icon: ImageVector,
-    label: String,
-    value: String,
-    placeholder: String,
-    onValueChange: (String) -> Unit,
-    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    isPhoneField: Boolean = false,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = FieldBg,
-        border = androidx.compose.foundation.BorderStroke(1.dp, AppBorder),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Icon(icon, contentDescription = label, tint = SafeBlue, modifier = Modifier.size(18.dp))
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    text = label,
-                    fontSize = 10.sp,
-                    color = TextMuted,
-                    fontWeight = FontWeight.Bold,
-                )
-
-                if (isPhoneField) {
-                    androidx.compose.ui.viewinterop.AndroidView(
-                        modifier = Modifier.fillMaxWidth(),
-                        factory = { context ->
-                            android.widget.EditText(context).apply {
-                                setBackgroundResource(android.R.color.transparent)
-                                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13f)
-                                setTextColor(android.graphics.Color.parseColor("#111827"))
-                                setHintTextColor(android.graphics.Color.parseColor("#9CA3AF"))
-                                hint = placeholder
-                                inputType = android.text.InputType.TYPE_CLASS_PHONE
-                                maxLines = 1
-                                setSingleLine()
-                                setPadding(0, 0, 0, 0)
-
-                                @Suppress("DEPRECATION")
-                                addTextChangedListener(android.telephony.PhoneNumberFormattingTextWatcher())
-
-                                addTextChangedListener(object : android.text.TextWatcher {
-                                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-                                    override fun afterTextChanged(s: android.text.Editable?) {
-                                        onValueChange(s?.toString() ?: "")
+            Text("종료 비밀번호", fontWeight = FontWeight.Bold)
+            Text(
+                "도착 후 이 비밀번호를 입력해야 귀가가 종료돼요",
+                color = TextMuted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            BasicTextField(
+                value = pin,
+                onValueChange = { pin = it.filter { char -> char in '0'..'9' }.take(4) },
+                singleLine = true,
+                textStyle = TextStyle(color = Color.Transparent),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                decorationBox = { inner ->
+                    Box {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            repeat(4) { index ->
+                                Surface(
+                                    Modifier.weight(1f).height(56.dp),
+                                    color = FieldBg,
+                                    shape = RoundedCornerShape(12.dp),
+                                    border =
+                                        if (pin.length == index) BorderStroke(1.dp, SafeBlue)
+                                        else BorderStroke(1.dp, AppBorder),
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            if (index < pin.length) "●" else "",
+                                            color = TextMain,
+                                            fontSize = 20.sp,
+                                        )
                                     }
-                                })
-                            }
-                        },
-                        update = { view ->
-                            if (view.text.toString() != value) {
-                                val cursor = view.selectionStart
-                                view.setText(value)
-                                try {
-                                    view.setSelection(cursor)
-                                } catch (exception: Exception) {
-                                    Log.w("GuardianScreen", "Restoring text cursor failed; moving it to the end", exception)
-                                    view.setSelection(view.text.length)
                                 }
                             }
-                        },
-                    )
-                } else {
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        if (value.isEmpty()) {
-                            Text(
-                                text = placeholder,
-                                fontSize = 13.sp,
-                                color = TextMuted.copy(alpha = 0.6f),
-                            )
                         }
-                        BasicTextField(
-                            value = value,
-                            onValueChange = onValueChange,
-                            singleLine = true,
-                            textStyle = TextStyle(
-                                fontSize = 13.sp,
-                                color = TextMain,
-                                fontWeight = FontWeight.SemiBold,
-                            ),
-                            cursorBrush = SolidColor(SafeBlue),
-                            keyboardOptions = keyboardOptions,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+                        Box(Modifier.fillMaxWidth().height(56.dp)) { inner() }
                     }
-                }
-            }
+                },
+            )
+            Text(
+                "귀가 세션·보호자 알림은 서버 연동이 필요합니다.",
+                color = TextMuted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Button(
+            shape = MaterialTheme.shapes.small,
+            onClick = { notice = true },
+            enabled = selected.isNotEmpty() && pin.length == 4,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+        ) {
+            Text("안전귀가 시작")
         }
     }
+    if (notice)
+        AlertDialog(
+            onDismissRequest = { notice = false },
+            title = { Text("안전귀가 시작") },
+            text = { Text("귀가 세션 서버가 연결되지 않아 시작되지 않았어요. 보호자에게 알림은 전송되지 않았습니다.") },
+            confirmButton = {
+                TextButton(shape = MaterialTheme.shapes.small, onClick = { notice = false }) {
+                    Text("확인")
+                }
+            },
+        )
 }
