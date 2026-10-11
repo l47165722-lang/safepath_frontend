@@ -73,6 +73,9 @@ import com.example.safepath_test1.ui.theme.FieldBg
 import com.example.safepath_test1.ui.theme.SafeBlue
 import com.example.safepath_test1.ui.theme.TextMain
 import com.example.safepath_test1.ui.theme.TextMuted
+import android.util.Log
+import androidx.compose.runtime.LaunchedEffect
+import com.example.safepath_test1.api.RetrofitClient
 
 private enum class RouteType(val title: String, val icon: ImageVector) {
     Safe("안전", Icons.Default.Lock),
@@ -109,6 +112,21 @@ fun HomeScreen(
     val isPlaceSearchLoading = uiState.isPlaceSearchLoading
     val placeSearchError = uiState.placeSearchError
     val destinationPoint = if (destination.hasCoordinates()) GeoPoint(destination.latitude!!, destination.longitude!!) else null
+
+    LaunchedEffect(Unit) {
+        try {
+            val facilities = RetrofitClient.api.getFacilities()
+
+            facilities.forEach {
+                Log.d(
+                    "SAFEPATH_API",
+                    "${it.id} ${it.type} ${it.name} ${it.latitude} ${it.longitude}"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("SAFEPATH_API", "API 호출 실패: ${e.message}", e)
+        }
+    }
 
     LaunchedEffect(destination.name, isDestinationSearchOpen) {
         homeViewModel.searchPlaces(destination.name, isDestinationSearchOpen, currentLocation)
