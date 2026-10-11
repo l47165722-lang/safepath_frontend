@@ -19,6 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.safepath_test1.wear.sensors.WatchMotionSender
+import com.example.safepath_test1.wear.sensors.WatchSensorManager
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
@@ -56,6 +58,20 @@ fun WearApp() {
     val context = LocalContext.current
     var status by remember { mutableStateOf<RouteStatus>(RouteStatus.Idle) }
     var lastReceivedAt by remember { mutableStateOf(0L) }
+
+    // WatchSensorManager로 모은 가속도/자이로 값은 WearDataRelayService 구현 전까지는
+    // Logcat(tag=WatchSensorManager)으로 확인한다.
+    val sensorManager = remember { WatchSensorManager(context) }
+    DisposableEffect(Unit) {
+        sensorManager.startAccelCollection()
+        sensorManager.startGyroCollection()
+        onDispose { sensorManager.stopCollection() }
+    }
+    LaunchedEffect(sensorManager) {
+        sensorManager.motionData.collect { motion ->
+            motion?.let { WatchMotionSender.send(context, it) }
+        }
+    }
 
     fun applyDataMap(dataMap: com.google.android.gms.wearable.DataMap) {
         val updatedAt = dataMap.getLong("updatedAt")
