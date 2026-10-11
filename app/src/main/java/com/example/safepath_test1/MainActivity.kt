@@ -22,4 +22,6 @@ class MainActivity : ComponentActivity() {
         )
         setContent { SafePathApp() }
     }
+
 }
+
