@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
+import com.example.safepath_test1.wear.sensors.WatchMotionSender
+import com.example.safepath_test1.wear.sensors.WatchSensorManager
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataMapItem
@@ -59,6 +61,19 @@ fun WearApp() {
     val context = LocalContext.current
     var status by remember { mutableStateOf<RouteStatus>(RouteStatus.Idle) }
     var lastReceivedAt by remember { mutableStateOf(0L) }
+
+    // 최신 센서 값을 폰의 WearDataRelayService로 전달한다. AI 서버 연동은 아직 구현되지 않았다.
+    val sensorManager = remember { WatchSensorManager(context) }
+    DisposableEffect(Unit) {
+        sensorManager.startAccelCollection()
+        sensorManager.startGyroCollection()
+        onDispose { sensorManager.stopCollection() }
+    }
+    LaunchedEffect(sensorManager) {
+        sensorManager.motionData.collect { motion ->
+            motion?.let { WatchMotionSender.send(context, it) }
+        }
+    }
 
     fun applyDataMap(dataMap: com.google.android.gms.wearable.DataMap) {
         val updatedAt = dataMap.getLong("updatedAt")
