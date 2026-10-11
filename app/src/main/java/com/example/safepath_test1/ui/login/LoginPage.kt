@@ -123,7 +123,6 @@ fun LoginPage(
                         val result = googleAuthManager.signInWithGoogle()
 
                         if (result.isSuccess) {
-                            Log.d("GoogleLogin", "Google 로그인 성공")
                             onLoginSuccess()
                         } else {
                             val exception = result.exceptionOrNull()
