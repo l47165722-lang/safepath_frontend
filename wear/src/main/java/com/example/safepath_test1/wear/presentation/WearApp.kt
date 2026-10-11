@@ -19,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.collectAsState
+import com.example.safepath_test1.wear.sensors.WatchMotionSender
 import com.example.safepath_test1.wear.sensors.WatchSensorManager
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.MaterialTheme
@@ -59,15 +59,19 @@ fun WearApp() {
     var status by remember { mutableStateOf<RouteStatus>(RouteStatus.Idle) }
     var lastReceivedAt by remember { mutableStateOf(0L) }
 
-    // --- 임시 테스트용: 가속도계/자이로 값을 화면에 바로 표시 ---
-    // (WatchSensorManager 동작 확인용. 폰으로 전송하는 부분은 아직 연결 안 함)
+    // WatchSensorManager로 모은 가속도/자이로 값은 WearDataRelayService 구현 전까지는
+    // Logcat(tag=WatchSensorManager)으로 확인한다.
     val sensorManager = remember { WatchSensorManager(context) }
     DisposableEffect(Unit) {
         sensorManager.startAccelCollection()
         sensorManager.startGyroCollection()
         onDispose { sensorManager.stopCollection() }
     }
-    val motion by sensorManager.motionData.collectAsState()
+    LaunchedEffect(sensorManager) {
+        sensorManager.motionData.collect { motion ->
+            motion?.let { WatchMotionSender.send(context, it) }
+        }
+    }
 
     fun applyDataMap(dataMap: com.google.android.gms.wearable.DataMap) {
         val updatedAt = dataMap.getLong("updatedAt")
@@ -165,18 +169,6 @@ fun WearApp() {
                         Text(text = "폰과 블루투스 연결을 확인하세요", textAlign = TextAlign.Center)
                     }
                 }
-
-                // --- 임시 테스트용 센서 값 표시 ---
-                Text(
-                    text = "가속도 %.2f, %.2f, %.2f".format(motion?.accelX ?: 0f, motion?.accelY ?: 0f, motion?.accelZ ?: 0f),
-                    style = MaterialTheme.typography.caption2,
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    text = "자이로 %.2f, %.2f, %.2f".format(motion?.gyroX ?: 0f, motion?.gyroY ?: 0f, motion?.gyroZ ?: 0f),
-                    style = MaterialTheme.typography.caption2,
-                    textAlign = TextAlign.Center,
-                )
             }
         }
     }

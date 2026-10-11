@@ -28,6 +28,9 @@ data class MotionData(
 
 private const val TAG = "WatchSensorManager"
 
+/** 20Hz (1000ms / 20 = 50ms per sample) - matches the window rate the AI motion model expects. */
+private const val SAMPLING_PERIOD_US = 50_000
+
 /**
  * Reads the watch's built-in accelerometer and gyroscope.
  *
@@ -41,9 +44,10 @@ private const val TAG = "WatchSensorManager"
  *   }
  *   val motion by sensorManager.motionData.collectAsState()
  *
- * No runtime permission is needed for TYPE_ACCELEROMETER / TYPE_GYROSCOPE at
- * SENSOR_DELAY_NORMAL. HIGH_SAMPLING_RATE_SENSORS would only be required if
- * we asked for a faster-than-normal sampling rate on Android 12+.
+ * Samples at a fixed 20Hz (SAMPLING_PERIOD_US) rather than the old ~5Hz default
+ * so the relayed data has enough resolution for motion analysis. No runtime
+ * permission is needed for this rate - HIGH_SAMPLING_RATE_SENSORS is only
+ * required above 200Hz on Android 12+.
  */
 class WatchSensorManager(context: Context) {
 
@@ -95,12 +99,12 @@ class WatchSensorManager(context: Context) {
 
     /** Starts listening to the accelerometer. Safe to call even if startGyroCollection() is also called. */
     fun startAccelCollection() {
-        accelerometer?.let { sensorManager.registerListener(listener, it, SensorManager.SENSOR_DELAY_NORMAL) }
+        accelerometer?.let { sensorManager.registerListener(listener, it, SAMPLING_PERIOD_US) }
     }
 
     /** Starts listening to the gyroscope. Safe to call even if startAccelCollection() is also called. */
     fun startGyroCollection() {
-        gyroscope?.let { sensorManager.registerListener(listener, it, SensorManager.SENSOR_DELAY_NORMAL) }
+        gyroscope?.let { sensorManager.registerListener(listener, it, SAMPLING_PERIOD_US) }
     }
 
     /** Stops both. Call this from onDispose so the sensors don't keep draining the battery. */
